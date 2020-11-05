@@ -92,8 +92,8 @@ suite = {
       "os_arch" : {
         "linux" : {
           "amd64" : {
-            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/llvm-org/llvm-llvmorg-{version}-linux-amd64.tar.gz"],
-            "sha1" : "7fd347a6ebe38b02b7cfe1a9e4352e297962a4fc",
+            "urls" : ["http://192.168.100.50/jenkins/graalvm/llvm-org.tar.gz"],
+            "sha1" : "c5f1dfceabe1620a2f3667ba072184b598135f30",
           },
           "aarch64" : {
             "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/llvm-org/llvm-llvmorg-{version}-linux-aarch64.tar.gz"],
@@ -125,8 +125,8 @@ suite = {
       # version difference since the sources where repackaged
       "version" : "9.0.0-5-g80b1d876fd-bg0c808efbe5",
       "packedResource" : True,
-      "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/llvm-org/llvm-src-llvmorg-{version}.tar.gz"],
-      "sha1" : "27bea70346768ee43893df3f65cf785c5b5d0342",
+      "urls" : ["http://192.168.100.50/jenkins/graalvm/llvm-org-src.tar.gz"],
+      "sha1" : "4494bb0bce0db57aeaec1e05d0ab7f527edc7e8d",
       "license" : "Apache-2.0-LLVM",
       },
   },
