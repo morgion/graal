@@ -46,7 +46,7 @@ public class LibCFeature implements Feature {
     public static class LibCOptions {
         @APIOption(name = "libc")//
         @Option(help = "Selects the libc implementation to use. Available implementations: glibc, musl")//
-        public static final HostedOptionKey<String> UseLibC = new HostedOptionKey<>("glibc");
+        public static final HostedOptionKey<String> UseLibC = new HostedOptionKey<>("musl");
     }
 
     @Override

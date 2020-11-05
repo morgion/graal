@@ -35,9 +35,6 @@ import org.graalvm.compiler.serviceprovider.JavaVersionUtil;
 public class MuslLibC implements LibCBase {
 
     public MuslLibC() {
-        if (!SubstrateOptions.StaticExecutable.getValue()) {
-            throw UserError.abort("Musl can only be used for statically linked executables.");
-        }
         if (JavaVersionUtil.JAVA_SPEC != 11) {
             throw UserError.abort("Musl can only be used with labsjdk 11.");
         }
@@ -52,13 +49,12 @@ public class MuslLibC implements LibCBase {
 
     @Override
     public List<String> getAdditionalQueryCodeCompilerOptions() {
-        /* Avoid the dependency to muslc for builds cross compiling to muslc. */
-        return Collections.singletonList("--static");
+        return Collections.emptyList();
     }
 
     @Override
     public String getTargetCompiler() {
-        return "musl-gcc";
+        return "gcc";
     }
 
     @Override

@@ -90,6 +90,7 @@ public abstract class NativeBootImageViaCC extends NativeBootImage {
         private final Set<String> libCLibaries = new HashSet<>(Arrays.asList("pthread", "dl", "rt"));
 
         BinutilsCCLinkerInvocation() {
+            additionalPreOptions.add("-no-pie");
             additionalPreOptions.add("-z");
             additionalPreOptions.add("noexecstack");
             if (SubstrateOptions.ForceNoROSectionRelocations.getValue()) {

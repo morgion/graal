@@ -282,7 +282,7 @@ public final class NativeLibraries {
             if (OS.getCurrent() == OS.LINUX) {
                 platformDependentPath = platformDependentPath.resolve(LibCBase.singleton().getName());
                 if (LibCBase.singleton().requiresLibCSpecificStaticJDKLibraries()) {
-                    return platformDependentPath;
+                    return baseSearchPath;
                 }
             }
 
