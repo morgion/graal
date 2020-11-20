@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # The Universal Permissive License (UPL), Version 1.0
@@ -229,7 +229,9 @@ def _truffle_gate_runner(args, tasks):
     with Task('File name length check', tasks) as t:
         if t: check_filename_length([])
     with Task('Check Copyrights', tasks) as t:
-        if t: mx.checkcopyrights(['--primary'])
+        if t:
+            if mx.checkcopyrights(['--primary']) != 0:
+                t.abort('Copyright errors found. Please run "mx checkcopyrights --primary -- --fix" to fix them.')
 
 mx_gate.add_gate_runner(_suite, _truffle_gate_runner)
 
@@ -638,10 +640,10 @@ class LibffiBuilderProject(mx.AbstractNativeProject, mx_native.NativeDependency)
         self.out_dir = self.get_output_root()
         if mx.get_os() == 'windows':
             self.delegate = mx_native.DefaultNativeProject(suite, name, subDir, [], [], None,
-                                                           mx.join(self.out_dir, 'libffi-3.2.1'),
+                                                           mx.join(self.out_dir, 'libffi-3.3'),
                                                            'static_lib',
                                                            deliverable='ffi',
-                                                           cflags=['-MD', '-O2'])
+                                                           cflags=['-MD', '-O2', '-DFFI_BUILDING_DLL'])
             self.delegate._source = dict(tree=['include',
                                                'src',
                                                mx.join('src', 'x86')],
@@ -650,12 +652,11 @@ class LibffiBuilderProject(mx.AbstractNativeProject, mx_native.NativeDependency)
                                                        mx.join('src', 'fficonfig.h'),
                                                        mx.join('src', 'ffi_common.h')],
                                                 '.c': [mx.join('src', 'closures.c'),
-                                                       mx.join('src', 'java_raw_api.c'),
                                                        mx.join('src', 'prep_cif.c'),
                                                        mx.join('src', 'raw_api.c'),
                                                        mx.join('src', 'types.c'),
-                                                       mx.join('src', 'x86', 'ffi.c')],
-                                                '.S': [mx.join('src', 'x86', 'win64.S')]})
+                                                       mx.join('src', 'x86', 'ffiw64.c')],
+                                                '.S': [mx.join('src', 'x86', 'win64_intel.S')]})
         else:
             class LibtoolNativeProject(mx.NativeProject,  # pylint: disable=too-many-ancestors
                                        mx_native.NativeDependency):
@@ -675,7 +676,7 @@ class LibffiBuilderProject(mx.AbstractNativeProject, mx_native.NativeDependency)
                                                   'include/ffi.h',
                                                   'include/ffitarget.h'],
                                                  mx.join(self.out_dir, 'libffi-build'),
-                                                 mx.join(self.out_dir, 'libffi-3.2.1'))
+                                                 mx.join(self.out_dir, 'libffi-3.3'))
             self.delegate.buildEnv = dict(
                 SOURCES=mx.basename(self.delegate.dir),
                 OUTPUT=mx.basename(self.delegate.getOutput()),
@@ -686,6 +687,7 @@ class LibffiBuilderProject(mx.AbstractNativeProject, mx_native.NativeDependency)
                     'CFLAGS="{}"'.format(' '.join(
                         ['-g', '-O3'] + (['-m64'] if mx.get_os() == 'solaris' else [])
                     )),
+                    'CPPFLAGS="-DNO_JAVA_RAW_API"',
                 ])
             )
 
@@ -810,3 +812,5 @@ mx.update_commands(_suite, {
     'create-dsl-parser' : [create_dsl_parser, "create the DSL expression parser using antlr"],
     'create-sl-parser' : [create_sl_parser, "create the SimpleLanguage parser using antlr"],
 })
+
+mx_gate.add_jacoco_includes(['org.graalvm.*', 'com.oracle.truffle.*'])

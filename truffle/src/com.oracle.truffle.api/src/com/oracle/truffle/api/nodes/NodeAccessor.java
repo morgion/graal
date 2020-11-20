@@ -57,6 +57,7 @@ final class NodeAccessor extends Accessor {
     private static final NodeAccessor ACCESSOR = new NodeAccessor();
 
     static final InteropSupport INTEROP = ACCESSOR.interopSupport();
+    static final ExceptionSupport EXCEPTION = ACCESSOR.exceptionSupport();
     static final EngineSupport ENGINE = ACCESSOR.engineSupport();
     static final LanguageSupport LANGUAGE = ACCESSOR.languageSupport();
     static final RuntimeSupport RUNTIME = ACCESSOR.runtimeSupport();
@@ -135,11 +136,6 @@ final class NodeAccessor extends Accessor {
         }
 
         @Override
-        public void clearPolyglotEngine(RootNode rootNode) {
-            rootNode.clearEngineRef();
-        }
-
-        @Override
         public void applyPolyglotEngine(RootNode from, RootNode to) {
             to.applyEngineRef(from);
         }
@@ -147,6 +143,21 @@ final class NodeAccessor extends Accessor {
         @Override
         public void forceAdoption(Node parent, Node child) {
             child.setParent(parent);
+        }
+
+        @Override
+        public boolean isTrivial(RootNode rootNode) {
+            return rootNode.isTrivial();
+        }
+
+        @Override
+        public Object translateStackTraceElement(TruffleStackTraceElement stackTraceLement) {
+            return stackTraceLement.getTarget().getRootNode().translateStackTraceElement(stackTraceLement);
+        }
+
+        @Override
+        public ExecutionSignature prepareForAOT(RootNode rootNode) {
+            return rootNode.prepareForAOT();
         }
 
     }

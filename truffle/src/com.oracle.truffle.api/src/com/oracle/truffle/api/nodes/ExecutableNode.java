@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -104,10 +104,6 @@ public abstract class ExecutableNode extends Node {
         this.engineRef = node.engineRef;
     }
 
-    final void clearEngineRef() {
-        this.engineRef = null;
-    }
-
     final Object getEngine() {
         Object ref = engineRef;
         if (ref instanceof TruffleLanguage<?>) {
@@ -148,13 +144,13 @@ public abstract class ExecutableNode extends Node {
      * intended for internal use in languages and is only accessible if the concrete type of the
      * language is known. Public information about the language can be accessed using
      * {@link #getLanguageInfo()}. The language is <code>null</code> if the executable node is not
-     * associated with a <code>null</code> language.
+     * associated with a language. This method is guaranteed to return a
+     * {@link CompilerDirectives#isPartialEvaluationConstant(Object) PE constant} if the root node
+     * is also a PE constant.
      *
      * @see #getLanguageInfo()
      * @since 0.31
-     * @deprecated use {@link #getLanguageReference(Class)} instead.
      */
-    @Deprecated
     @SuppressWarnings({"rawtypes", "unchecked"})
     public final <C extends TruffleLanguage> C getLanguage(Class<C> languageClass) {
         TruffleLanguage<?> language = getLanguage();
@@ -162,10 +158,8 @@ public abstract class ExecutableNode extends Node {
             return null;
         }
         if (language.getClass() != languageClass) {
-            if (!languageClass.isInstance(language) || languageClass == TruffleLanguage.class || !TruffleLanguage.class.isAssignableFrom(languageClass)) {
-                CompilerDirectives.transferToInterpreter();
-                throw new ClassCastException("Illegal language class specified. Expected " + language.getClass().getName() + ".");
-            }
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw new ClassCastException(String.format("Illegal language class specified. Expected '%s'.", language.getClass().getName()));
         }
         return (C) language;
     }

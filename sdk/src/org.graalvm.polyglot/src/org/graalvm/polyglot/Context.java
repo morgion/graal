@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -43,12 +43,14 @@ package org.graalvm.polyglot;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -765,6 +767,30 @@ public final class Context implements AutoCloseable {
     }
 
     /**
+     * Use this method to interrupt this context. The interruption is non-destructive meaning the
+     * context is still usable after this method finishes. Please note that guest finally blocks are
+     * executed during interrupt. A context thread may not be interruptiple if it uses
+     * non-interruptible waiting or executes non-interruptible host code.
+     * 
+     * This method may be used as a "soft exit", meaning that it can be used before
+     * {@link #close(boolean) close(true)} is executed.
+     *
+     * @param timeout specifies the duration the interrupt method will wait for the active threads
+     *            of the context to be finished. Setting the duration to {@link Duration#ZERO 0}
+     *            means wait indefinitely.
+     * @throws IllegalStateException in case the context is entered in the current thread.
+     * @throws TimeoutException in case the interrupt was not successful, i.e., not all threads were
+     *             finished within the specified time limit.
+     *
+     * @since 20.3
+     */
+    public void interrupt(Duration timeout) throws TimeoutException {
+        if (!impl.interrupt(this, timeout)) {
+            throw new TimeoutException("Interrupt timed out.");
+        }
+    }
+
+    /**
      * Returns the currently entered polyglot context. A context will be entered if the current
      * executing Java method is called by a Graal guest language or if a context is entered
      * explicitly using {@link Context#enter()} on the current thread. The returned context may be
@@ -1138,6 +1164,9 @@ public final class Context implements AutoCloseable {
          * options in production environments. If set to {@code false} (the default), then passing
          * an experimental option results in an {@link IllegalArgumentException} when the context is
          * built.
+         * <p>
+         * Alternatively {@link Engine.Builder#allowExperimentalOptions(boolean)} may be used when
+         * constructing the context using an {@link #engine(Engine) explicit engine}.
          *
          * @since 19.0
          */

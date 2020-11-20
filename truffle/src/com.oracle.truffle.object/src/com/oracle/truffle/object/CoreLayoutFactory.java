@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -51,15 +51,19 @@ public class CoreLayoutFactory implements LayoutFactory {
         return DefaultLayout.createCoreLayout(layoutBuilder);
     }
 
-    public Property createProperty(Object id, Location location) {
+    public final Property createProperty(Object id, Location location) {
         return createProperty(id, location, 0);
     }
 
-    public Property createProperty(Object id, Location location, int flags) {
+    public final Property createProperty(Object id, Location location, int flags) {
         return new PropertyImpl(id, location, flags);
     }
 
     public int getPriority() {
         return 10;
+    }
+
+    protected void resetNativeImageState() {
+        DefaultLayout.resetNativeImageState();
     }
 }

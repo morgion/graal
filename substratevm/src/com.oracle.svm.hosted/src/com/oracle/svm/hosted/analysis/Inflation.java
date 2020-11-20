@@ -119,24 +119,12 @@ public class Inflation extends BigBang {
     }
 
     @Override
-    public boolean addRoot(JavaConstant constant, Object root) {
-        SubstrateObjectConstant sConstant = (SubstrateObjectConstant) constant;
-        return sConstant.setRoot(root);
-    }
-
-    @Override
-    public Object getRoot(JavaConstant constant) {
-        SubstrateObjectConstant sConstant = (SubstrateObjectConstant) constant;
-        return sConstant.getRoot();
-    }
-
-    @Override
     protected void checkObjectGraph(ObjectScanner objectScanner) {
         universe.getFields().forEach(this::handleUnknownValueField);
         universe.getTypes().forEach(this::checkType);
 
         /* Scan hubs of all types that end up in the native image. */
-        universe.getTypes().stream().filter(type -> type.isInstantiated() || type.isInTypeCheck() || type.isPrimitive()).forEach(type -> scanHub(objectScanner, type));
+        universe.getTypes().stream().filter(type -> type.isInstantiated() || type.isReachable() || type.isPrimitive()).forEach(type -> scanHub(objectScanner, type));
     }
 
     @Override
@@ -154,7 +142,7 @@ public class Inflation extends BigBang {
         }
 
         if (type.getJavaKind() == JavaKind.Object) {
-            if (type.isArray() && (type.isInstantiated() || type.isInTypeCheck())) {
+            if (type.isArray() && (type.isInstantiated() || type.isReachable())) {
                 hub.getComponentHub().setArrayHub(hub);
             }
 
@@ -203,6 +191,7 @@ public class Inflation extends BigBang {
                      * name.
                      */
                     AnalysisField found = null;
+                    type.registerAsReachable();
                     for (AnalysisField f : type.getStaticFields()) {
                         if (f.getName().endsWith("$VALUES")) {
                             if (found != null) {
@@ -254,10 +243,8 @@ public class Inflation extends BigBang {
             callTreePrinter.buildCallTree();
             int numberOfTypes = callTreePrinter.classesSet(false).size();
             if (numberOfTypes > maxReachableTypes) {
-                throw UserError.abort("Reachable " + numberOfTypes + " types but only " + maxReachableTypes + " allowed (because the " + MaxReachableTypes.getName() +
-                                " option is set). To see all reachable types use " + PrintAnalysisCallTree.getName() + "; to change the maximum number of allowed types use " +
-                                MaxReachableTypes.getName() +
-                                ".");
+                throw UserError.abort("Reachable %d types but only %d allowed (because the %s option is set). To see all reachable types use %s; to change the maximum number of allowed types use %s.",
+                                numberOfTypes, maxReachableTypes, MaxReachableTypes.getName(), PrintAnalysisCallTree.getName(), MaxReachableTypes.getName());
             }
         }
     }
@@ -665,13 +652,13 @@ public class Inflation extends BigBang {
      * number of annotations on a class, then we might return a lower number.
      */
     private static boolean isAnnotationUsed(AnalysisType annotationType) {
-        if (annotationType.isInstantiated() || annotationType.isInTypeCheck()) {
+        if (annotationType.isInstantiated() || annotationType.isReachable()) {
             return true;
         }
         assert annotationType.getInterfaces().length == 1 : annotationType;
 
         AnalysisType annotationInterfaceType = annotationType.getInterfaces()[0];
-        return annotationInterfaceType.isInstantiated() || annotationInterfaceType.isInTypeCheck();
+        return annotationInterfaceType.isInstantiated() || annotationInterfaceType.isReachable();
     }
 
     public static ResolvedJavaType toWrappedType(ResolvedJavaType type) {

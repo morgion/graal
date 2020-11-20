@@ -1,7 +1,7 @@
 suite = {
-    "mxversion": "5.265.3",
+    "mxversion": "5.270.0",
     "name": "substratevm",
-    "version" : "20.2.0",
+    "version" : "20.3.0",
     "release" : True,
     "url" : "https://github.com/oracle/graal/tree/master/substratevm",
 
@@ -37,9 +37,19 @@ suite = {
     },
 
     "libraries" : {
-        "RENAISSANCE_HARNESS_11" : {
-            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/renaissance/renaissance_harness_11.tar.gz"],
+        "RENAISSANCE_HARNESS_v0.9" : {
+            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/renaissance/renaissance-harness_v0.9.0.tar.gz"],
             "sha1" : "0bef46df4699d896034005d6f3f0422a7075482b",
+            "packedResource": True,
+        },
+        "RENAISSANCE_HARNESS_v0.10" : {
+            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/renaissance/renaissance-harness_v0.10.0.tar.gz"],
+            "sha1" : "842e60f56d9871a1fa5700dcc446acbd041e875b",
+            "packedResource": True,
+        },
+        "RENAISSANCE_HARNESS_v0.11" : {
+            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/renaissance/renaissance-harness_v0.11.0.tar.gz"],
+            "sha1" : "8d402c1e7c972badfcffdd6c64ed4e791b0dea02",
             "packedResource": True,
         },
         "DACAPO_SVM" : {
@@ -158,6 +168,16 @@ suite = {
             "workingSets": "SVM",
         },
 
+        "com.oracle.svm.core.containers": {
+            "subDir": "src",
+            "sourceDirs": ["src"],
+            "dependencies": ["com.oracle.svm.core"],
+            "overlayTarget": "com.oracle.svm.core",
+            "javaCompliance": "8+",
+            "workingSets": "SVM",
+            "spotbugs": "false",
+        },
+
         "com.oracle.svm.core.jdk8": {
             "subDir": "src",
             "sourceDirs": ["src"],
@@ -217,6 +237,8 @@ suite = {
             "requiresConcealed" : {
                 "java.base" : [
                     "jdk.internal.loader",
+                    "jdk.internal.misc",
+                    "sun.invoke.util",
                 ],
             },
             "javaCompliance": "15+",
@@ -576,11 +598,44 @@ suite = {
             "testProject": True,
         },
 
+        "com.oracle.svm.configure.test": {
+            "subDir": "src",
+            "sourceDirs": ["src"],
+            "dependencies": [
+                "mx:JUNIT_TOOL",
+                "sdk:GRAAL_SDK",
+                "com.oracle.svm.configure",
+            ],
+            "checkstyle": "com.oracle.svm.core",
+            "workingSets": "SVM",
+            "annotationProcessors": [
+                "compiler:GRAAL_PROCESSOR",
+            ],
+            "javaCompliance": "8+",
+            "spotbugs": "false",
+            "testProject": True,
+        },
+
         "com.oracle.svm.reflect": {
             "subDir": "src",
             "sourceDirs": ["src"],
             "dependencies": [
                 "com.oracle.svm.hosted",
+            ],
+            "checkstyle": "com.oracle.svm.core",
+            "workingSets": "SVM",
+            "annotationProcessors": [
+                "compiler:GRAAL_PROCESSOR",
+            ],
+            "javaCompliance": "8+",
+            "spotbugs": "false",
+        },
+
+        "com.oracle.svm.methodhandles": {
+            "subDir": "src",
+            "sourceDirs": ["src"],
+            "dependencies": [
+                "com.oracle.svm.reflect",
             ],
             "checkstyle": "com.oracle.svm.core",
             "workingSets": "SVM",
@@ -842,6 +897,24 @@ suite = {
             "spotbugs": "false",
         },
 
+        "com.oracle.svm.diagnosticsagent": {
+            "subDir": "src",
+            "sourceDirs": [
+                "src",
+                "resources"
+            ],
+            "dependencies": [
+                "JVMTI_AGENT_BASE",
+            ],
+            "checkstyle": "com.oracle.svm.driver",
+            "workingSets": "SVM",
+            "annotationProcessors": [
+                "compiler:GRAAL_PROCESSOR",
+            ],
+            "javaCompliance": "8+",
+            "spotbugs": "false",
+        },
+
         "com.oracle.svm.truffle.tck" : {
             "subDir": "src",
             "sourceDirs": ["src"],
@@ -879,6 +952,7 @@ suite = {
                 "com.oracle.svm.core.genscavenge",
                 "com.oracle.svm.jni",
                 "com.oracle.svm.reflect",
+                "com.oracle.svm.methodhandles"
             ],
             "overlaps" : [
                 "SVM_CORE", "SVM_HOSTED",
@@ -1051,6 +1125,18 @@ suite = {
             # vm: included as binary, tool descriptor intentionally not copied
         },
 
+        "SVM_DIAGNOSTICS_AGENT": {
+            "subDir": "src",
+            "description" : "Native-image diagnostics agent",
+            "dependencies": [
+                "com.oracle.svm.diagnosticsagent",
+            ],
+            "distDependencies": [
+                "JVMTI_AGENT_BASE",
+                "LIBRARY_SUPPORT",
+            ],
+        },
+
         "SVM_CONFIGURE": {
             "subDir": "src",
             "description" : "SubstrateVM native-image configuration tool",
@@ -1084,10 +1170,12 @@ suite = {
           "dependencies" : [
             "com.oracle.svm.test",
             "com.oracle.svm.test.jdk11",
+            "com.oracle.svm.configure.test",
           ],
           "distDependencies": [
             "mx:JUNIT_TOOL",
             "sdk:GRAAL_SDK",
+            "SVM_CONFIGURE",
           ],
           "testDistribution" : True,
         },

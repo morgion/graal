@@ -135,7 +135,7 @@ public class FeatureImpl {
 
         @Override
         public List<Path> getApplicationClassPath() {
-            return imageClassLoader.getClassLoader().imagecp;
+            return imageClassLoader.applicationClassPath();
         }
 
         @Override
@@ -144,7 +144,7 @@ public class FeatureImpl {
              * GR-16855: The image generator does not yet support a module path. This method will
              * return the proper module path when module support gets implemented.
              */
-            return Collections.emptyList();
+            return imageClassLoader.applicationModulePath();
         }
 
         @Override
@@ -209,7 +209,7 @@ public class FeatureImpl {
         }
 
         public boolean isReachable(AnalysisType type) {
-            return type.isInTypeCheck() || type.isInstantiated();
+            return type.isReachable() || type.isInstantiated();
         }
 
         public boolean isReachable(Field field) {
@@ -234,7 +234,7 @@ public class FeatureImpl {
         }
 
         Set<AnalysisType> reachableSubtypes(AnalysisType baseType) {
-            Set<AnalysisType> result = getUniverse().getSubtypes(baseType);
+            Set<AnalysisType> result = AnalysisUniverse.getSubtypes(baseType);
             result.removeIf(t -> !isReachable(t));
             return result;
         }
@@ -245,7 +245,7 @@ public class FeatureImpl {
         }
 
         Set<AnalysisMethod> reachableMethodOverrides(AnalysisMethod baseMethod) {
-            return getUniverse().getMethodImplementations(getBigBang(), baseMethod);
+            return AnalysisUniverse.getMethodImplementations(getBigBang(), baseMethod);
         }
     }
 
@@ -309,7 +309,7 @@ public class FeatureImpl {
         }
 
         public void registerAsUsed(AnalysisType aType) {
-            aType.registerAsInTypeCheck();
+            aType.registerAsReachable();
         }
 
         @Override
@@ -323,11 +323,17 @@ public class FeatureImpl {
 
         @Override
         public void registerAsAccessed(Field field) {
+            getMetaAccess().lookupJavaType(field.getDeclaringClass()).registerAsReachable();
             registerAsAccessed(getMetaAccess().lookupJavaField(field));
         }
 
         public void registerAsAccessed(AnalysisField aField) {
             aField.registerAsAccessed();
+        }
+
+        public void registerAsRead(Field field) {
+            getMetaAccess().lookupJavaType(field.getDeclaringClass()).registerAsReachable();
+            registerAsRead(getMetaAccess().lookupJavaField(field));
         }
 
         public void registerAsRead(AnalysisField aField) {
@@ -336,6 +342,7 @@ public class FeatureImpl {
 
         @Override
         public void registerAsUnsafeAccessed(Field field) {
+            getMetaAccess().lookupJavaType(field.getDeclaringClass()).registerAsReachable();
             registerAsUnsafeAccessed(getMetaAccess().lookupJavaField(field));
         }
 
@@ -352,6 +359,7 @@ public class FeatureImpl {
         }
 
         public void registerAsFrozenUnsafeAccessed(Field field) {
+            getMetaAccess().lookupJavaType(field.getDeclaringClass()).registerAsReachable();
             registerAsFrozenUnsafeAccessed(getMetaAccess().lookupJavaField(field));
         }
 

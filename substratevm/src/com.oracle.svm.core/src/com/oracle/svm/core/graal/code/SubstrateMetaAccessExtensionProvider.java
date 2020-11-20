@@ -27,10 +27,12 @@ package com.oracle.svm.core.graal.code;
 
 import org.graalvm.compiler.core.common.spi.MetaAccessExtensionProvider;
 
+import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.core.meta.SharedType;
 
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.JavaType;
+import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 public class SubstrateMetaAccessExtensionProvider implements MetaAccessExtensionProvider {
@@ -43,5 +45,32 @@ public class SubstrateMetaAccessExtensionProvider implements MetaAccessExtension
     @Override
     public boolean canConstantFoldDynamicAllocation(ResolvedJavaType type) {
         return type != null && ((SharedType) type).getHub().isInstantiated();
+    }
+
+    @Override
+    public boolean isGuaranteedSafepoint(ResolvedJavaMethod method, boolean isDirect) {
+        if (method == null) {
+            /*
+             * Don't know the method target, so cannot say anything definitive.
+             */
+            return false;
+        }
+
+        // check if the method itself indicates it will not have a safepoint.
+        SharedMethod sharedMethod = (SharedMethod) method;
+        if (sharedMethod.isUninterruptible()) {
+            return false;
+        }
+
+        // for indirect calls, confirming all implementations also have safepoints.
+        if (!isDirect) {
+            for (SharedMethod implementation : sharedMethod.getImplementations()) {
+                if (implementation.isUninterruptible()) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

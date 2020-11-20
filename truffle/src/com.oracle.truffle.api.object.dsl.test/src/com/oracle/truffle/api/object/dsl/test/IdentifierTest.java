@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -44,14 +44,14 @@ import org.junit.Test;
 
 import com.oracle.truffle.api.object.DynamicObject;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
-import com.oracle.truffle.api.object.dsl.Layout;
 
 import org.junit.Assert;
 
 public class IdentifierTest {
     private static final DynamicObjectLibrary LIBRARY = DynamicObjectLibrary.getUncached();
 
-    @Layout
+    @SuppressWarnings("deprecation")
+    @com.oracle.truffle.api.object.dsl.Layout
     public interface IdentifierTestLayout {
 
         String A_IDENTIFIER = "a_identifier";

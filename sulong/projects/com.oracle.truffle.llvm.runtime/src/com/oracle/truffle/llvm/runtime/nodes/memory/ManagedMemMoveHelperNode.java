@@ -126,32 +126,52 @@ abstract class ManagedMemMoveHelperNode extends LLVMNode {
             return length % unitSize == 0;
         }
 
+        /**
+         * @param helper
+         * @param length
+         * @see #execute(ManagedMemMoveHelperNode, long)
+         */
         @Specialization(guards = {"helper.supportsUnitSize(8)", "isDivisible(length, 8)"})
-        @SuppressWarnings("unused")
         int do8(ManagedMemMoveHelperNode helper, long length) {
             return 8;
         }
 
+        /**
+         * @param helper
+         * @param length
+         * @see #execute(ManagedMemMoveHelperNode, long)
+         */
         @Specialization(guards = {"helper.supportsUnitSize(4)", "isDivisible(length, 4)"}, replaces = "do8")
-        @SuppressWarnings("unused")
         int do4(ManagedMemMoveHelperNode helper, long length) {
             return 4;
         }
 
+        /**
+         * @param helper
+         * @param length
+         * @see #execute(ManagedMemMoveHelperNode, long)
+         */
         @Specialization(guards = {"helper.supportsUnitSize(2)", "isDivisible(length, 2)"}, replaces = "do4")
-        @SuppressWarnings("unused")
         int do2(ManagedMemMoveHelperNode helper, long length) {
             return 2;
         }
 
+        /**
+         * @param helper
+         * @param length
+         * @see #execute(ManagedMemMoveHelperNode, long)
+         */
         @Specialization(guards = {"helper.supportsUnitSize(1)", "isDivisible(length, 1)"}, replaces = "do2")
-        @SuppressWarnings("unused")
         int do1(ManagedMemMoveHelperNode helper, long length) {
             return 1;
         }
 
+        /**
+         * @param helper
+         * @param length
+         * @see #execute(ManagedMemMoveHelperNode, long)
+         */
         @Fallback
-        @SuppressWarnings("unused")
         int doError(ManagedMemMoveHelperNode helper, long length) {
             CompilerDirectives.transferToInterpreter();
             throw new LLVMPolyglotException(this, "Memmove length is not divisible by managed array element size.");
@@ -174,7 +194,7 @@ abstract class ManagedMemMoveHelperNode extends LLVMNode {
 
         private static MemReadHelperNode createManaged(Object type, NativeTypeLibrary nativeTypes, LLVMManagedReadLibrary managedRead) {
             if (type instanceof LLVMInteropType.Array) {
-                long elementSize = ((LLVMInteropType.Array) type).getElementSize();
+                long elementSize = ((LLVMInteropType.Array) type).elementSize;
                 if (elementSize == 2) {
                     return MemReadI16NodeGen.create(nativeTypes, managedRead);
                 } else if (elementSize == 4) {
@@ -280,7 +300,7 @@ abstract class ManagedMemMoveHelperNode extends LLVMNode {
                 if (nativeTypes.accepts(managed.getObject()) && managedRead.accepts(managed.getObject()) && managedRead.isReadable(managed.getObject())) {
                     Object type = nativeTypes.getNativeType(managed.getObject());
                     if (type instanceof LLVMInteropType.Array) {
-                        return ((LLVMInteropType.Array) type).getElementSize() == getAccessSize();
+                        return ((LLVMInteropType.Array) type).elementSize == getAccessSize();
                     } else {
                         return getAccessSize() == 1;
                     }
@@ -390,7 +410,7 @@ abstract class ManagedMemMoveHelperNode extends LLVMNode {
 
         private static MemWriteHelperNode createManaged(Object type, NativeTypeLibrary nativeTypes, LLVMManagedWriteLibrary managedWrite) {
             if (type instanceof LLVMInteropType.Array) {
-                long elementSize = ((LLVMInteropType.Array) type).getElementSize();
+                long elementSize = ((LLVMInteropType.Array) type).elementSize;
                 if (elementSize == 2) {
                     return MemWriteI16NodeGen.create(nativeTypes, managedWrite);
                 } else if (elementSize == 4) {
@@ -496,7 +516,7 @@ abstract class ManagedMemMoveHelperNode extends LLVMNode {
                 if (nativeTypes.accepts(managed.getObject()) && managedWrite.accepts(managed.getObject()) && managedWrite.isWritable(managed.getObject())) {
                     Object type = nativeTypes.getNativeType(managed.getObject());
                     if (type instanceof LLVMInteropType.Array) {
-                        return ((LLVMInteropType.Array) type).getElementSize() == getAccessSize();
+                        return ((LLVMInteropType.Array) type).elementSize == getAccessSize();
                     } else {
                         return getAccessSize() == 1;
                     }

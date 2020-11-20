@@ -24,8 +24,6 @@
  */
 package org.graalvm.compiler.truffle.compiler.phases.inlining;
 
-import static org.graalvm.compiler.truffle.compiler.TruffleCompilerOptions.getPolyglotOptionValue;
-
 import org.graalvm.compiler.debug.DebugContext;
 import org.graalvm.compiler.graph.Graph;
 import org.graalvm.compiler.truffle.common.TruffleCompilerRuntime;
@@ -41,6 +39,7 @@ public final class CallTree extends Graph {
     private final PartialEvaluator.Request request;
     int expanded = 1;
     int inlined = 1;
+    int frontierSize;
     private int nextId = 0;
 
     CallTree(PartialEvaluator partialEvaluator, PartialEvaluator.Request request, InliningPolicy policy) {
@@ -77,12 +76,12 @@ public final class CallTree extends Graph {
     }
 
     void trace() {
-        Boolean details = getPolyglotOptionValue(request.options, PolyglotCompilerOptions.TraceInliningDetails);
-        if (getPolyglotOptionValue(request.options, PolyglotCompilerOptions.TraceInlining) || details) {
+        Boolean details = request.options.get(PolyglotCompilerOptions.TraceInliningDetails);
+        if (request.options.get(PolyglotCompilerOptions.TraceInlining) || details) {
             TruffleCompilerRuntime runtime = TruffleCompilerRuntime.getRuntime();
-            runtime.logEvent(root.getTruffleAST(), 0, "inline start", root.getName(), root.getStringProperties(), null);
+            runtime.logEvent(root.getTruffleAST(), 0, "Inline start", root.getName(), root.getStringProperties(), null);
             traceRecursive(runtime, root, details, 0);
-            runtime.logEvent(root.getTruffleAST(), 0, "inline done", root.getName(), root.getStringProperties(), null);
+            runtime.logEvent(root.getTruffleAST(), 0, "Inline done", root.getName(), root.getStringProperties(), null);
         }
     }
 
@@ -116,5 +115,11 @@ public final class CallTree extends Graph {
 
     void collectTargetsToDequeue(TruffleMetaAccessProvider provider) {
         root.collectTargetsToDequeue(provider);
+    }
+
+    public void updateTracingInfo(TruffleMetaAccessProvider inliningPlan) {
+        final int inlinedWithoutRoot = inlined - 1;
+        inliningPlan.setCallCount(inlinedWithoutRoot + frontierSize);
+        inliningPlan.setInlinedCallCount(inlinedWithoutRoot);
     }
 }

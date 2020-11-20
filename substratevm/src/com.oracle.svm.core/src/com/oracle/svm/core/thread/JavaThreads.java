@@ -68,7 +68,9 @@ import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.monitor.MonitorSupport;
 import com.oracle.svm.core.nodes.CFunctionEpilogueNode;
 import com.oracle.svm.core.nodes.CFunctionPrologueNode;
+import com.oracle.svm.core.snippets.KnownIntrinsics;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
+import com.oracle.svm.core.threadlocal.FastThreadLocal;
 import com.oracle.svm.core.threadlocal.FastThreadLocalFactory;
 import com.oracle.svm.core.threadlocal.FastThreadLocalObject;
 import com.oracle.svm.core.util.TimeUtils;
@@ -82,7 +84,7 @@ public abstract class JavaThreads {
     }
 
     /** The {@link java.lang.Thread} for the {@link IsolateThread}. */
-    static final FastThreadLocalObject<Thread> currentThread = FastThreadLocalFactory.createObject(Thread.class);
+    static final FastThreadLocalObject<Thread> currentThread = FastThreadLocalFactory.createObject(Thread.class).setMaxOffset(FastThreadLocal.BYTE_OFFSET);
 
     /**
      * The number of running non-daemon threads. The initial value accounts for the main thread,
@@ -546,7 +548,17 @@ public abstract class JavaThreads {
         }
     }
 
+    @NeverInline("Starting a stack walk in the caller frame")
     static StackTraceElement[] getStackTrace(Thread thread) {
+        if (thread == Thread.currentThread()) {
+            /*
+             * We can walk our own stack without a VMOperation. Note that it is intentional that we
+             * read the caller stack pointer in this helper method: The Thread.getStackTrace method
+             * itself needs to be included in the result.
+             */
+            return StackTraceUtils.getStackTrace(false, KnownIntrinsics.readCallerStackPointer());
+        }
+
         StackTraceElement[][] result = new StackTraceElement[1][0];
         JavaVMOperation.enqueueBlockingSafepoint("getStackTrace", () -> {
             for (IsolateThread cur = VMThreads.firstThread(); cur.isNonNull(); cur = VMThreads.nextThread(cur)) {

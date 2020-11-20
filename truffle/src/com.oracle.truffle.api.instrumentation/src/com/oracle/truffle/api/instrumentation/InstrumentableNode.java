@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -360,6 +360,26 @@ public interface InstrumentableNode extends NodeInterface {
      */
     default Node findNearestNodeAt(int sourceCharIndex, Set<Class<? extends Tag>> tags) {
         return DefaultNearestNodeSearch.findNearestNodeAt(sourceCharIndex, (Node) this, tags);
+    }
+
+    /**
+     * Find the first {@link #isInstrumentable() instrumentable} node on it's parent chain. If the
+     * provided node is instrumentable itself, it is returned. If not, the first parent node that is
+     * instrumentable is returned, if any.
+     *
+     * @param node a Node
+     * @return the first instrumentable node, or <code>null</code> when no instrumentable parent
+     *         exists.
+     * @since 20.3
+     */
+    static Node findInstrumentableParent(Node node) {
+        Node inode = node;
+        while (inode != null && (inode instanceof WrapperNode || !(inode instanceof InstrumentableNode && ((InstrumentableNode) inode).isInstrumentable()))) {
+            inode = inode.getParent();
+        }
+        assert inode == null || inode instanceof InstrumentableNode && ((InstrumentableNode) inode).isInstrumentable() : inode;
+        assert !(inode instanceof WrapperNode) : inode;
+        return inode;
     }
 
     /**

@@ -24,17 +24,18 @@
  */
 package org.graalvm.compiler.truffle.runtime;
 
-import java.io.OutputStream;
+import java.util.function.Function;
 
-import org.graalvm.compiler.truffle.options.PolyglotCompilerOptions;
 import org.graalvm.options.OptionDescriptors;
 import org.graalvm.options.OptionValues;
 
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.CompilerAsserts;
+import com.oracle.truffle.api.TruffleLogger;
 import com.oracle.truffle.api.impl.Accessor.RuntimeSupport;
 import com.oracle.truffle.api.nodes.BlockNode;
 import com.oracle.truffle.api.nodes.BlockNode.ElementExecutor;
-import com.oracle.truffle.api.nodes.IndirectCallNode;
+import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
 
@@ -46,13 +47,11 @@ final class GraalRuntimeSupport extends RuntimeSupport {
         super(permission);
     }
 
-    @Override
-    public IndirectCallNode createUncachedIndirectCall() {
-        return OptimizedIndirectCallNode.createUncached();
-    }
-
+    @ExplodeLoop
     @Override
     public void onLoopCount(Node source, int count) {
+        CompilerAsserts.partialEvaluationConstant(source);
+
         Node node = source;
         Node parentNode = source != null ? source.getParent() : null;
         while (node != null) {
@@ -62,7 +61,7 @@ final class GraalRuntimeSupport extends RuntimeSupport {
             parentNode = node;
             node = node.getParent();
         }
-        if (parentNode != null && parentNode instanceof RootNode) {
+        if (parentNode instanceof RootNode) {
             CallTarget target = ((RootNode) parentNode).getCallTarget();
             if (target instanceof OptimizedCallTarget) {
                 ((OptimizedCallTarget) target).onLoopCount(count);
@@ -71,15 +70,13 @@ final class GraalRuntimeSupport extends RuntimeSupport {
     }
 
     @Override
-    public OptionDescriptors getCompilerOptionDescriptors() {
-        return PolyglotCompilerOptions.getDescriptors();
+    public OptionDescriptors getEngineOptionDescriptors() {
+        return GraalTruffleRuntime.getRuntime().getEngineOptionDescriptors();
     }
 
     @Override
     public boolean isGuestCallStackFrame(StackTraceElement e) {
-        return (e.getMethodName().equals(OptimizedCallTarget.EXECUTE_ROOT_NODE_METHOD_NAME) && e.getClassName().equals(OptimizedCallTarget.class.getName())) ||
-                        (e.getMethodName().equals(CALL_INLINED_METHOD_NAME) &&
-                                        e.getClassName().equals(GraalRuntimeSupport.class.getName()));
+        return e.getMethodName().equals(OptimizedCallTarget.EXECUTE_ROOT_NODE_METHOD_NAME) && e.getClassName().equals(OptimizedCallTarget.class.getName());
 
     }
 
@@ -90,27 +87,12 @@ final class GraalRuntimeSupport extends RuntimeSupport {
      */
     @Override
     public void initializeProfile(CallTarget target, Class<?>[] argumentTypes) {
-        ((OptimizedCallTarget) target).initializeArgumentTypes(argumentTypes);
+        ((OptimizedCallTarget) target).initializeUnsafeArgumentTypes(argumentTypes);
     }
 
     @Override
     public <T extends Node> BlockNode<T> createBlockNode(T[] elements, ElementExecutor<T> executor) {
         return new OptimizedBlockNode<>(elements, executor);
-    }
-
-    @Override
-    public void reloadEngineOptions(Object runtimeData, OptionValues optionValues) {
-        ((EngineData) runtimeData).loadOptions(optionValues);
-    }
-
-    @Override
-    public void onEngineClosed(Object runtimeData) {
-        GraalTruffleRuntime.getRuntime().onEngineClosed((EngineData) runtimeData);
-    }
-
-    @Override
-    public OutputStream getConfiguredLogStream() {
-        return TruffleDebugOptions.getConfiguredLogStream();
     }
 
     @Override
@@ -165,4 +147,60 @@ final class GraalRuntimeSupport extends RuntimeSupport {
         return OptimizedCallTarget.unsafeCast(value, type, condition, nonNull, exact);
     }
 
+    @Override
+    public boolean inFirstTier() {
+        return GraalCompilerDirectives.inFirstTier();
+    }
+
+    @Override
+    public void flushCompileQueue(Object runtimeData) {
+        EngineData engine = (EngineData) runtimeData;
+        BackgroundCompileQueue queue = GraalTruffleRuntime.getRuntime().getCompileQueue();
+        // compile queue might be null if no call target was yet created
+        if (queue != null) {
+            for (OptimizedCallTarget target : queue.getQueuedTargets(engine)) {
+                target.cancelCompilation("Polyglot engine was closed.");
+            }
+        }
+    }
+
+    @Override
+    public Object tryLoadCachedEngine(OptionValues options, Function<String, TruffleLogger> loggerFactory) {
+        return GraalTruffleRuntime.getRuntime().getEngineCacheSupport().tryLoadingCachedEngine(options, loggerFactory);
+    }
+
+    @Override
+    public boolean isStoreEnabled(OptionValues options) {
+        return EngineCacheSupport.get().isStoreEnabled(options);
+    }
+
+    @Override
+    public Object createRuntimeData(OptionValues options, Function<String, TruffleLogger> loggerFactory) {
+        return new EngineData(options, loggerFactory);
+    }
+
+    @Override
+    public void onEngineCreate(Object engine, Object runtimeData) {
+        ((EngineData) runtimeData).onEngineCreated(engine);
+    }
+
+    @Override
+    public void onEnginePatch(Object runtimeData, OptionValues options, Function<String, TruffleLogger> loggerFactory) {
+        ((EngineData) runtimeData).onEnginePatch(options, loggerFactory);
+    }
+
+    @Override
+    public boolean onEngineClosing(Object runtimeData) {
+        return ((EngineData) runtimeData).onEngineClosing();
+    }
+
+    @Override
+    public void onEngineClosed(Object runtimeData) {
+        ((EngineData) runtimeData).onEngineClosed();
+    }
+
+    @Override
+    public boolean isOSRRootNode(RootNode rootNode) {
+        return rootNode instanceof OptimizedOSRLoopNode.OSRRootNode;
+    }
 }

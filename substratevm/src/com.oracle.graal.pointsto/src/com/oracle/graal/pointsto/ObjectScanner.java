@@ -91,7 +91,7 @@ public abstract class ObjectScanner {
             fields = fieldsList;
         }
         for (AnalysisField field : fields) {
-            if (Modifier.isStatic(field.getModifiers()) && field.getJavaKind() == JavaKind.Object && field.isAccessed()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getJavaKind() == JavaKind.Object && field.isInImageHeap()) {
                 execute(exec, () -> scanRootField(field));
             }
         }
@@ -190,12 +190,6 @@ public abstract class ObjectScanner {
             } else if (fieldValue.isNull()) {
                 forNullFieldValue(receiver, field);
             } else if (fieldValue.getJavaKind() == JavaKind.Object) {
-
-                if (receiver == null) {
-                    registerRoot(fieldValue, field);
-                } else {
-                    propagateRoot(receiver, fieldValue);
-                }
                 /* Scan the field value. */
                 scanConstant(fieldValue, reason, previous);
                 /* Process the field value. */
@@ -204,27 +198,6 @@ public abstract class ObjectScanner {
 
         } catch (UnsupportedFeatureException ex) {
             unsupportedFeature(field.format("%H.%n"), ex.getMessage(), reason, previous);
-        }
-    }
-
-    /** Found a root, map the constant value to the root field. */
-    private void registerRoot(JavaConstant fieldValue, AnalysisField field) {
-        bb.addRoot(fieldValue, field);
-    }
-
-    /** Map the constant value to the root field of it's receiver. */
-    private void propagateRoot(JavaConstant receiver, JavaConstant value) {
-        Object receiverRoot = bb.getRoot(receiver);
-        if (receiverRoot != null) {
-            /*
-             * Not all roots are accounted for. Only roots for the values coming from static final
-             * fields scanning, ConstantFoldLoadFieldPlugin folding or @Fold intrinsification are
-             * tracked. All other constants are from ConstantNode objects embedded in the compiled
-             * code and found during method scanning. The roots of those embedded constants could be
-             * tracked as well if the ConstantNode objects are intercepted at their creation
-             * location.
-             */
-            bb.addRoot(value, receiverRoot);
         }
     }
 
@@ -264,7 +237,6 @@ public abstract class ObjectScanner {
                     JavaConstant elementConstant = bb.getSnippetReflectionProvider().forObject(element);
                     AnalysisType elementType = analysisType(bb, element);
 
-                    propagateRoot(array, elementConstant);
                     /* Scan the array element. */
                     scanConstant(elementConstant, reason, previous);
                     /* Process the array element. */
@@ -364,11 +336,12 @@ public abstract class ObjectScanner {
 
         try {
             AnalysisType type = analysisType(bb, valueObj);
+            type.registerAsReachable();
 
             if (type.isInstanceClass()) {
                 /* Scan constant's instance fields. */
                 for (AnalysisField field : type.getInstanceFields(true)) {
-                    if (field.getJavaKind() == JavaKind.Object && field.isAccessed()) {
+                    if (field.getJavaKind() == JavaKind.Object && field.isInImageHeap()) {
                         assert !Modifier.isStatic(field.getModifiers());
                         scanField(field, entry.constant, entry);
                     }

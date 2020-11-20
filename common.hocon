@@ -14,7 +14,7 @@ overlay = ${ci.overlay}
 # to another branch/commit in a Graal PR when mx changes are required for the PR.
 mx : {
   packages : {
-    mx: "5.268.1"
+    mx: "5.275.6"
   }
 }
 
@@ -35,8 +35,12 @@ oraclejdk11 :       { downloads : { JAVA_HOME : ${jdks.oraclejdk11} }}
 oraclejdk15 :       { downloads : { JAVA_HOME : ${jdks.oraclejdk15} }}
 openjdk11 :         { downloads : { JAVA_HOME : ${jdks.openjdk11} }}
 
-labsjdk-ce-11 :         { downloads : { JAVA_HOME : ${jdks.labsjdk-ce-11} }}
-labsjdk-ee-11 :         { downloads : { JAVA_HOME : ${jdks.labsjdk-ee-11} }}
+labsjdk-ce-11 :      { downloads : { JAVA_HOME : ${jdks.labsjdk-ce-11} }}
+labsjdk-ee-11 :      { downloads : { JAVA_HOME : ${jdks.labsjdk-ee-11} }}
+labsjdk-ce-15 :      { downloads : { JAVA_HOME : ${jdks.labsjdk-ce-15} }}
+labsjdk-ee-15 :      { downloads : { JAVA_HOME : ${jdks.labsjdk-ee-15} }}
+labsjdk-ce-15Debug : { downloads : { JAVA_HOME : ${jdks.labsjdk-ce-15Debug} }}
+labsjdk-ee-15Debug : { downloads : { JAVA_HOME : ${jdks.labsjdk-ee-15Debug} }}
 
 common : ${mx} {
   timelimit : "30:00"

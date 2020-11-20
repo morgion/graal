@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -45,22 +45,22 @@ import static com.oracle.truffle.api.CompilerDirectives.shouldNotReachHere;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.Scope;
 import com.oracle.truffle.api.Truffle;
-import com.oracle.truffle.api.TruffleException;
 import com.oracle.truffle.api.TruffleFile;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.TruffleOptions;
+import com.oracle.truffle.api.exception.AbstractTruffleException;
 import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.interop.InteropLibrary;
 import com.oracle.truffle.api.interop.InvalidArrayIndexException;
@@ -68,23 +68,37 @@ import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.interop.UnsupportedMessageException;
 import com.oracle.truffle.api.library.ExportLibrary;
 import com.oracle.truffle.api.library.ExportMessage;
-import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
+import com.oracle.truffle.polyglot.HostAdapterFactory.AdapterResult;
 import com.oracle.truffle.polyglot.HostLanguage.HostContext;
 
 /*
  * Java host language implementation.
  */
-class HostLanguage extends TruffleLanguage<HostContext> {
+final class HostLanguage extends TruffleLanguage<HostContext> {
+
+    @CompilationFinal private volatile PolyglotEngineImpl internalEngine;
+
+    HostToGuestCodeCache getHostToGuestCache() {
+        return internalEngine.getHostToGuestCodeCache();
+    }
 
     static final class HostContext {
 
-        volatile PolyglotLanguageContext internalContext;
+        @CompilationFinal volatile PolyglotLanguageContext internalContext;
         final Map<String, Class<?>> classCache = new HashMap<>();
-        private volatile Iterable<Scope> topScopes;
+        private final Object topScope = new TopScopeObject(this);
         private volatile HostClassLoader classloader;
+        private final HostLanguage language;
+        final ClassValue<Map<List<Class<?>>, AdapterResult>> adapterCache = new ClassValue<Map<List<Class<?>>, AdapterResult>>() {
+            @Override
+            protected Map<List<Class<?>>, AdapterResult> computeValue(Class<?> type) {
+                return new ConcurrentHashMap<>();
+            }
+        };
 
-        HostContext() {
+        HostContext(HostLanguage language) {
+            this.language = language;
         }
 
         @TruffleBoundary
@@ -106,7 +120,7 @@ class HostLanguage extends TruffleLanguage<HostContext> {
             }
         }
 
-        private HostClassLoader getClassloader() {
+        HostClassLoader getClassloader() {
             if (classloader == null) {
                 ClassLoader parentClassLoader = internalContext.context.config.hostClassLoader != null ? internalContext.context.config.hostClassLoader
                                 : internalContext.getEngine().contextClassLoader;
@@ -182,17 +196,22 @@ class HostLanguage extends TruffleLanguage<HostContext> {
             }
             getClassloader().addClasspathRoot(classpathEntry);
         }
+
+        void initializeInternal(PolyglotLanguageContext hostContext) {
+            this.internalContext = hostContext;
+            PolyglotEngineImpl engine = this.language.internalEngine;
+            if (engine != null) {
+                assert engine == hostContext.getEngine();
+            }
+            this.language.internalEngine = hostContext.getEngine();
+        }
     }
 
     @SuppressWarnings("serial")
-    private static class HostLanguageException extends RuntimeException implements TruffleException {
+    private static class HostLanguageException extends AbstractTruffleException {
 
         HostLanguageException(String message) {
             super(message);
-        }
-
-        public Node getLocation() {
-            return null;
         }
     }
 
@@ -250,22 +269,12 @@ class HostLanguage extends TruffleLanguage<HostContext> {
 
     @Override
     protected HostContext createContext(com.oracle.truffle.api.TruffleLanguage.Env env) {
-        return new HostContext();
+        return new HostContext(this);
     }
 
     @Override
-    protected Iterable<Scope> findTopScopes(HostContext context) {
-        Iterable<Scope> topScopes = context.topScopes;
-        if (topScopes == null) {
-            synchronized (context) {
-                topScopes = context.topScopes;
-                if (topScopes == null) {
-                    topScopes = Collections.singleton(Scope.newBuilder("Hosting top scope", new TopScopeObject(context)).build());
-                    context.topScopes = topScopes;
-                }
-            }
-        }
-        return topScopes;
+    protected Object getScope(HostContext context) {
+        return context.topScope;
     }
 
     @Override
@@ -280,6 +289,24 @@ class HostLanguage extends TruffleLanguage<HostContext> {
 
         private TopScopeObject(HostContext context) {
             this.context = context;
+        }
+
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        boolean hasLanguage() {
+            return true;
+        }
+
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        Class<? extends TruffleLanguage<?>> getLanguage() {
+            return HostLanguage.class;
+        }
+
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        boolean isScope() {
+            return true;
         }
 
         @SuppressWarnings("static-method")
@@ -306,6 +333,11 @@ class HostLanguage extends TruffleLanguage<HostContext> {
             return HostObject.forStaticClass(context.findClass(member), context.internalContext);
         }
 
+        @SuppressWarnings("static-method")
+        @ExportMessage
+        Object toDisplayString(@SuppressWarnings("unused") boolean allowSideEffects) {
+            return "Static Scope";
+        }
     }
 
     @ExportLibrary(InteropLibrary.class)

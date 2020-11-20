@@ -39,10 +39,6 @@ import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.nativeimage.c.type.WordPointer;
 import org.graalvm.word.WordBase;
 
-import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiEnv;
-import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiError;
-import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiFrameInfo;
-import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiInterface;
 import com.oracle.svm.core.SubstrateUtil;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.jni.nativeapi.JNIEnvironment;
@@ -52,11 +48,17 @@ import com.oracle.svm.jni.nativeapi.JNIMethodId;
 import com.oracle.svm.jni.nativeapi.JNINativeInterface;
 import com.oracle.svm.jni.nativeapi.JNIObjectHandle;
 import com.oracle.svm.jni.nativeapi.JNIValue;
+import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiEnv;
+import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiError;
+import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiFrameInfo;
+import com.oracle.svm.jvmtiagentbase.jvmti.JvmtiInterface;
 
 /**
  * A utility class that contains helper methods for JNI/JVMTI that agents can use.
  */
 public final class Support {
+    private static final byte JNI_TRUE = 1;
+    private static final byte JNI_FALSE = 0;
 
     public static boolean isInitialized() {
         boolean initialized = jvmtiEnv.isNonNull();
@@ -167,7 +169,7 @@ public final class Support {
     public static JNIMethodId getCallerMethod(int depth) {
         JvmtiFrameInfo frameInfo = StackValue.get(JvmtiFrameInfo.class);
         CIntPointer countPtr = StackValue.get(CIntPointer.class);
-        JvmtiError result = jvmtiFunctions().GetStackTrace().invoke(jvmtiEnv(), nullHandle(), depth, 1, frameInfo, countPtr);
+        JvmtiError result = jvmtiFunctions().GetStackTrace().invoke(jvmtiEnv(), nullHandle(), depth, 1, (WordPointer) frameInfo, countPtr);
         if (result == JvmtiError.JVMTI_ERROR_NONE && countPtr.read() == 1) {
             return frameInfo.getMethod();
         }
@@ -180,6 +182,24 @@ public final class Support {
             return nullHandle();
         }
         return handlePtr.read();
+    }
+
+    public static byte getByteArgument(int slot) {
+        CIntPointer valuePtr = StackValue.get(CIntPointer.class);
+        if (jvmtiFunctions().GetLocalInt().invoke(jvmtiEnv(), nullHandle(), 0, slot, valuePtr) != JvmtiError.JVMTI_ERROR_NONE) {
+            return 0;
+        }
+        assert (byte) valuePtr.read() == valuePtr.read();
+        return (byte) valuePtr.read();
+    }
+
+    public static boolean getBooleanArgument(int slot) {
+        CIntPointer valuePtr = StackValue.get(CIntPointer.class);
+        if (jvmtiFunctions().GetLocalInt().invoke(jvmtiEnv(), nullHandle(), 0, slot, valuePtr) != JvmtiError.JVMTI_ERROR_NONE) {
+            return false;
+        }
+        assert valuePtr.read() == JNI_TRUE || valuePtr.read() == JNI_FALSE;
+        return valuePtr.read() == JNI_TRUE;
     }
 
     public static String getClassNameOr(JNIEnvironment env, JNIObjectHandle clazz, String forNullHandle, String forNullNameOrException) {
@@ -224,6 +244,17 @@ public final class Support {
         return name;
     }
 
+    public static String getMethodNameOr(JNIMethodId methodId, String defaultValue) {
+        String methodName = defaultValue;
+        CCharPointerPointer methodNamePtr = StackValue.get(CCharPointerPointer.class);
+        if (jvmtiFunctions().GetMethodName().invoke(jvmtiEnv(), methodId, methodNamePtr, nullHandle(), nullHandle()) == JvmtiError.JVMTI_ERROR_NONE) {
+            methodName = Support.fromCString(methodNamePtr.read());
+            jvmtiFunctions().Deallocate().invoke(jvmtiEnv(), methodNamePtr.read());
+        }
+
+        return methodName;
+    }
+
     public static boolean clearException(JNIEnvironment localEnv) {
         if (jniFunctions().getExceptionCheck().invoke(localEnv)) {
             jniFunctions().getExceptionClear().invoke(localEnv);
@@ -261,6 +292,15 @@ public final class Support {
         JNIValue args = StackValue.get(2, JNIValue.class);
         args.addressOf(0).setObject(l0);
         args.addressOf(1).setObject(l1);
+        return jniFunctions().getCallObjectMethodA().invoke(env, obj, method, args);
+    }
+
+    public static JNIObjectHandle callObjectMethodBLLZ(JNIEnvironment env, JNIObjectHandle obj, JNIMethodId method, byte b0, JNIObjectHandle l1, JNIObjectHandle l2, boolean z3) {
+        JNIValue args = StackValue.get(4, JNIValue.class);
+        args.addressOf(0).setByte(b0);
+        args.addressOf(1).setObject(l1);
+        args.addressOf(2).setObject(l2);
+        args.addressOf(3).setBoolean(z3);
         return jniFunctions().getCallObjectMethodA().invoke(env, obj, method, args);
     }
 
@@ -316,6 +356,13 @@ public final class Support {
         return jniFunctions().getCallStaticObjectMethodA().invoke(env, clazz, method, args);
     }
 
+    public static void callStaticVoidMethodLL(JNIEnvironment env, JNIObjectHandle clazz, JNIMethodId method, JNIObjectHandle l0, JNIObjectHandle l1) {
+        JNIValue args = StackValue.get(2, JNIValue.class);
+        args.addressOf(0).setObject(l0);
+        args.addressOf(1).setObject(l1);
+        jniFunctions().getCallStaticVoidMethodA().invoke(env, clazz, method, args);
+    }
+
     public static boolean callBooleanMethod(JNIEnvironment env, JNIObjectHandle obj, JNIMethodId method) {
         return jniFunctions().getCallBooleanMethodA().invoke(env, obj, method, nullPointer());
     }
@@ -347,12 +394,21 @@ public final class Support {
         return jniFunctions().getNewObjectA().invoke(env, clazz, ctor, args);
     }
 
+    public static JNIObjectHandle newObjectLLLJ(JNIEnvironment env, JNIObjectHandle clazz, JNIMethodId ctor, JNIObjectHandle l0, JNIObjectHandle l1, JNIObjectHandle l2, long l3) {
+        JNIValue args = StackValue.get(4, JNIValue.class);
+        args.addressOf(0).setObject(l0);
+        args.addressOf(1).setObject(l1);
+        args.addressOf(2).setObject(l2);
+        args.addressOf(3).setLong(l3);
+        return jniFunctions().getNewObjectA().invoke(env, clazz, ctor, args);
+    }
+
     public static void checkNoException(JNIEnvironment localEnv) {
         VMError.guarantee(!testException(localEnv));
     }
 
     public static void check(JvmtiError resultCode) {
-        guarantee(resultCode.equals(JvmtiError.JVMTI_ERROR_NONE));
+        guarantee(resultCode.equals(JvmtiError.JVMTI_ERROR_NONE), "JVMTI call failed with " + resultCode.name());
     }
 
     public static void checkJni(int resultCode) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -465,16 +465,22 @@ public class LibraryGenerator extends CodeTypeElementFactory<LibraryData> {
                 builder.returnTrue();
             } else {
                 GeneratorUtils.addBoundaryOrTransferToInterpreter(execute, builder);
-                GeneratorUtils.pushEncapsulatingNode(builder, "getParent()");
-                builder.startTryBlock();
+                boolean pushEncapsulating = model.isPushEncapsulatingNode();
+
+                if (pushEncapsulating) {
+                    GeneratorUtils.pushEncapsulatingNode(builder, "getParent()");
+                    builder.startTryBlock();
+                }
                 builder.startReturn().startCall("INSTANCE.getUncached(receiver_)", execute.getSimpleName().toString());
                 for (VariableElement var : execute.getParameters()) {
                     builder.string(var.getSimpleName().toString());
                 }
                 builder.end().end();
-                builder.end().startFinallyBlock();
-                GeneratorUtils.popEncapsulatingNode(builder);
-                builder.end();
+                if (pushEncapsulating) {
+                    builder.end().startFinallyBlock();
+                    GeneratorUtils.popEncapsulatingNode(builder);
+                    builder.end();
+                }
                 ExportsGenerator.injectCachedAssertions(model, execute);
             }
         }

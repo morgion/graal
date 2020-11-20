@@ -89,7 +89,7 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
                 interop.writeMember(location.base, identifier, convertOutgoing.execute(value, location.type, writeType));
             } catch (UnsupportedMessageException ex) {
                 exception.enter();
-                throw new LLVMPolyglotException(this, "Can not write member '%s'.", identifier);
+                throw new LLVMPolyglotException(this, "Cannot write member '%s'.", identifier);
             } catch (UnknownIdentifierException ex) {
                 exception.enter();
                 throw new LLVMPolyglotException(this, "Member '%s' not found.", identifier);
@@ -125,7 +125,7 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
                         @CachedLibrary("location.base") InteropLibrary interop,
                         @Cached ReinterpretLLVMAsLong toLong,
                         @Cached BranchProfile exception,
-                        @Bind("location.type.getKind().foreignToLLVMType") @SuppressWarnings("unused") ForeignToLLVMType locationType,
+                        @Bind("location.type.kind.foreignToLLVMType") @SuppressWarnings("unused") ForeignToLLVMType locationType,
                         @Bind("writeType.getSizeInBytes()") int writeTypeSizeInBytes) {
             assert identifier == (Long) location.identifier;
             long idx = identifier;
@@ -141,7 +141,7 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
                 throw new LLVMPolyglotException(this, "Invalid array index %d.", idx);
             } catch (UnsupportedMessageException ex) {
                 exception.enter();
-                throw new LLVMPolyglotException(this, "Can not write array element %d.", idx);
+                throw new LLVMPolyglotException(this, "Cannot write array element %d.", idx);
             } catch (UnsupportedTypeException ex) {
                 exception.enter();
                 throw new LLVMPolyglotException(this, "Wrong type writing to array element %d.", idx);
@@ -152,11 +152,11 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
         void fallback(@SuppressWarnings("unused") Object identifier, AccessLocation location, Object value, ForeignToLLVMType writeType) {
             assert location.type != null;
             throw new LLVMPolyglotException(this, "Cannot write object '%s' of size %d byte(s) to foreign object of element size %d", value, writeType.getSizeInBytes(),
-                            location.type.getKind().foreignToLLVMType.getSizeInBytes());
+                            location.type.kind.foreignToLLVMType.getSizeInBytes());
         }
 
         static boolean isLocationTypeNullOrSameSize(AccessLocation location, ForeignToLLVMType accessType) {
-            return location.type == null || location.type.getKind().foreignToLLVMType.getSizeInBytes() == accessType.getSizeInBytes();
+            return location.type == null || location.type.kind.foreignToLLVMType.getSizeInBytes() == accessType.getSizeInBytes();
         }
     }
 
@@ -167,20 +167,20 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
 
         @Specialization(guards = "writeType.getSizeInBytes() == 2")
         long doI16(Object value, @SuppressWarnings("unused") ForeignToLLVMType writeType,
-                        @Cached(parameters = "I16") LLVMDataEscapeNode dataEscape) {
-            return (Short) dataEscape.executeWithTarget(value);
+                        @Cached LLVMDataEscapeNode.LLVMI16DataEscapeNode dataEscape) {
+            return dataEscape.executeWithTargetI16(value);
         }
 
         @Specialization(guards = "writeType.getSizeInBytes() == 4")
         long doI32(Object value, @SuppressWarnings("unused") ForeignToLLVMType writeType,
-                        @Cached(parameters = "I32") LLVMDataEscapeNode dataEscape) {
-            return (Integer) dataEscape.executeWithTarget(value);
+                        @Cached LLVMDataEscapeNode.LLVMI32DataEscapeNode dataEscape) {
+            return dataEscape.executeWithTargetI32(value);
         }
 
         @Specialization(guards = "writeType.getSizeInBytes() == 8")
         long doI64(Object value, @SuppressWarnings("unused") ForeignToLLVMType writeType,
-                        @Cached(parameters = "I64") LLVMDataEscapeNode dataEscape) {
-            return (Long) dataEscape.executeWithTarget(value);
+                        @Cached LLVMDataEscapeNode.LLVMI64DataEscapeNode dataEscape) {
+            return dataEscape.executeWithTargetI64(value);
         }
 
         @Fallback
@@ -211,10 +211,15 @@ public abstract class LLVMInteropWriteNode extends LLVMNode {
             }
         }
 
+        /**
+         * @param value
+         * @param outgoingType
+         * @param type
+         * @see #execute(Object, LLVMInteropType.Value, ForeignToLLVMType)
+         */
         @Specialization(limit = "3", guards = {"typeMismatch(outgoingType, cachedType)", "cachedType == type"})
-        @SuppressWarnings("unused")
         Object doUnknownType(Object value, LLVMInteropType.Value outgoingType, ForeignToLLVMType type,
-                        @Cached("type") ForeignToLLVMType cachedType,
+                        @Cached("type") @SuppressWarnings("unused") ForeignToLLVMType cachedType,
                         @Cached(parameters = "type") LLVMDataEscapeNode dataEscape) {
             return dataEscape.executeWithTarget(value);
         }

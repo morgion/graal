@@ -49,9 +49,7 @@ import java.util.function.Predicate;
 
 import org.graalvm.compiler.core.common.SuppressFBWarnings;
 import org.graalvm.compiler.word.ObjectAccess;
-import org.graalvm.compiler.word.Word;
 import org.graalvm.nativeimage.ImageSingletons;
-import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.c.function.CFunction;
 import org.graalvm.nativeimage.c.function.CLibrary;
@@ -60,6 +58,7 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 import org.graalvm.word.WordFactory;
 
+import com.oracle.svm.core.Containers;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateUtil;
 import com.oracle.svm.core.annotate.Alias;
@@ -73,6 +72,7 @@ import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.jdk.JavaLangSubstitutions.ClassValueSupport;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.monitor.MonitorSupport;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
@@ -100,12 +100,6 @@ final class Target_java_lang_Object {
     @TargetElement(name = "hashCode")
     private int hashCodeSubst() {
         return System.identityHashCode(this);
-    }
-
-    @Substitute
-    @TargetElement(name = "toString")
-    private String toStringSubst() {
-        return getClass().getName() + "@" + Long.toHexString(Word.objectToUntrackedPointer(this).rawValue());
     }
 
     @Substitute
@@ -251,8 +245,13 @@ final class Target_java_lang_Runtime {
     @Substitute
     @Platforms(InternalPlatform.PLATFORM_JNI.class)
     private int availableProcessors() {
+        int optionValue = SubstrateOptions.ActiveProcessorCount.getValue();
+        if (optionValue > 0) {
+            return optionValue;
+        }
+
         if (SubstrateOptions.MultiThreaded.getValue()) {
-            return Jvm.JVM_ActiveProcessorCount();
+            return Containers.activeProcessorCount();
         } else {
             return 1;
         }
@@ -586,8 +585,16 @@ final class Target_java_lang_ClassValue {
         Object result = values.get(type);
         if (result == null) {
             Object newValue = computeValue(type);
+            if (newValue == null) {
+                /* values can't store null, replace with NULL_MARKER */
+                newValue = ClassValueSupport.NULL_MARKER;
+            }
             Object oldValue = values.putIfAbsent(type, newValue);
             result = oldValue != null ? oldValue : newValue;
+        }
+        if (result == ClassValueSupport.NULL_MARKER) {
+            /* replace NULL_MARKER back to real null */
+            result = null;
         }
         return result;
     }
@@ -781,23 +788,10 @@ final class Target_java_lang_Package {
 
     @Substitute
     @TargetElement(onlyWith = JDK8OrEarlier.class)
-    static Package getPackage(Class<?> c) {
-        if (c.isPrimitive() || c.isArray()) {
-            /* Arrays and primitives don't have a package. */
-            return null;
-        }
-
-        /* Logic copied from java.lang.Package.getPackage(java.lang.Class). */
-        String name = c.getName();
-        int i = name.lastIndexOf('.');
-        if (i != -1) {
-            name = name.substring(0, i);
-            Target_java_lang_Package pkg = new Target_java_lang_Package(name, null, null, null,
-                            null, null, null, null, null);
-            return SubstrateUtil.cast(pkg, Package.class);
-        } else {
-            return null;
-        }
+    private static Package getSystemPackage(String name) {
+        Target_java_lang_Package pkg = new Target_java_lang_Package(name, null, null, null,
+                        null, null, null, null, null);
+        return SubstrateUtil.cast(pkg, Package.class);
     }
 }
 
@@ -878,8 +872,14 @@ final class Target_jdk_internal_loader_BootLoader {
 /** Dummy class to have a class with the file's name. */
 public final class JavaLangSubstitutions {
 
-    @Platforms(Platform.HOSTED_ONLY.class)//
     public static final class ClassValueSupport {
+
+        /**
+         * Marker value that replaces null values in the
+         * {@link java.util.concurrent.ConcurrentHashMap}.
+         */
+        public static final Object NULL_MARKER = new Object();
+
         final Map<ClassValue<?>, Map<Class<?>, Object>> values;
 
         public ClassValueSupport(Map<ClassValue<?>, Map<Class<?>, Object>> map) {

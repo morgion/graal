@@ -127,14 +127,13 @@ public class SecurityServicesFeature extends JNIRegistrationUtil implements Feat
         rci.rerunInitialization(clazz(access, "java.util.UUID$Holder"), "for substitutions");
 
         /*
-         * The classes bellow have a static final SecureRandom field. Note that if the classes are
-         * not found as reachable by the analysis registering them form class initialization rerun
+         * The classes below have a static final SecureRandom field. Note that if the classes are
+         * not found as reachable by the analysis registering them for class initialization rerun
          * doesn't have any effect.
          */
         rci.rerunInitialization(clazz(access, "sun.security.jca.JCAUtil$CachedSecureRandomHolder"), "for substitutions");
         rci.rerunInitialization(clazz(access, "com.sun.crypto.provider.SunJCE$SecureRandomHolder"), "for substitutions");
         rci.rerunInitialization(clazz(access, "sun.security.krb5.Confounder"), "for substitutions");
-        rci.rerunInitialization(javax.net.ssl.SSLContext.class, "for substitutions");
 
         /*
          * When SSLContextImpl$DefaultManagersHolder sets-up the TrustManager in its initializer it
@@ -156,10 +155,8 @@ public class SecurityServicesFeature extends JNIRegistrationUtil implements Feat
         optionalClazz(access, "sun.security.ssl.Debug").ifPresent(c -> rci.rerunInitialization(c, "for reading properties at run time"));
         optionalClazz(access, "sun.security.ssl.SSLLogger").ifPresent(c -> rci.rerunInitialization(c, "for reading properties at run time"));
 
-        if (SubstrateOptions.EnableAllSecurityServices.getValue()) {
-            /* Prepare SunEC native library access. */
-            prepareSunEC();
-        }
+        /* Prepare SunEC native library access. */
+        prepareSunEC();
     }
 
     private static void prepareSunEC() {
@@ -256,18 +253,16 @@ public class SecurityServicesFeature extends JNIRegistrationUtil implements Feat
     private static void linkSunEC(DuringAnalysisAccess duringAnalysisAccess) {
         FeatureImpl.DuringAnalysisAccessImpl a = (FeatureImpl.DuringAnalysisAccessImpl) duringAnalysisAccess;
         NativeLibraries nativeLibraries = a.getNativeLibraries();
-        if (nativeLibraries.getStaticLibraryPath("sunec") != null) {
-            /* We statically link sunec thus we classify it as builtIn library */
-            PlatformNativeLibrarySupport.singleton();
-            NativeLibrarySupport.singleton().preregisterUninitializedBuiltinLibrary("sunec");
-            /* and ensure native calls to sun_security_ec* will be resolved as builtIn. */
-            PlatformNativeLibrarySupport.singleton().addBuiltinPkgNativePrefix("sun_security_ec");
+        /* We statically link sunec thus we classify it as builtIn library */
+        PlatformNativeLibrarySupport.singleton();
+        NativeLibrarySupport.singleton().preregisterUninitializedBuiltinLibrary("sunec");
+        /* and ensure native calls to sun_security_ec* will be resolved as builtIn. */
+        PlatformNativeLibrarySupport.singleton().addBuiltinPkgNativePrefix("sun_security_ec");
 
-            nativeLibraries.addStaticJniLibrary("sunec");
-            if (isPosix()) {
-                /* Library sunec depends on stdc++ */
-                nativeLibraries.addDynamicNonJniLibrary("stdc++");
-            }
+        nativeLibraries.addStaticJniLibrary("sunec");
+        if (isPosix()) {
+            /* Library sunec depends on stdc++ */
+            nativeLibraries.addDynamicNonJniLibrary("stdc++");
         }
     }
 
@@ -275,13 +270,11 @@ public class SecurityServicesFeature extends JNIRegistrationUtil implements Feat
         JNIRuntimeAccess.register(fields(duringAnalysisAccess, "com.sun.security.auth.module.UnixSystem", "username", "uid", "gid", "groups"));
 
         NativeLibraries nativeLibraries = ((FeatureImpl.DuringAnalysisAccessImpl) duringAnalysisAccess).getNativeLibraries();
-        if (nativeLibraries.getStaticLibraryPath("jaas") != null) {
-            /* We can statically link jaas, thus we classify it as builtIn library */
-            NativeLibrarySupport.singleton().preregisterUninitializedBuiltinLibrary(JavaVersionUtil.JAVA_SPEC >= 11 ? "jaas" : "jaas_unix");
-            /* Resolve calls to com_sun_security_auth_module_UnixSystem* as builtIn. */
-            PlatformNativeLibrarySupport.singleton().addBuiltinPkgNativePrefix("com_sun_security_auth_module_UnixSystem");
-            nativeLibraries.addStaticJniLibrary("jaas");
-        }
+        /* We can statically link jaas, thus we classify it as builtIn library */
+        NativeLibrarySupport.singleton().preregisterUninitializedBuiltinLibrary(JavaVersionUtil.JAVA_SPEC >= 11 ? "jaas" : "jaas_unix");
+        /* Resolve calls to com_sun_security_auth_module_UnixSystem* as builtIn. */
+        PlatformNativeLibrarySupport.singleton().addBuiltinPkgNativePrefix("com_sun_security_auth_module_UnixSystem");
+        nativeLibraries.addStaticJniLibrary("jaas");
     }
 
     /**

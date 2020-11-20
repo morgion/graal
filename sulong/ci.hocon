@@ -50,6 +50,7 @@ sulong-gateTest38-linux: ${sulong-gateTest-linux} ${sulong-gateTest-default-tool
         CLANG_CXX: "clang-3.8 --driver-mode=g++"
         CLANG_LLVM_OBJCOPY: "objcopy"
         CLANG_NO_OPTNONE: "1"
+        CFLAGS: "-Wno-error"
     }
 }
 
@@ -62,6 +63,7 @@ sulong-gateTest40-linux: ${sulong-gateTest-linux} ${sulong-gateTest-default-tool
         CLANG_CXX: "clang-4.0 --driver-mode=g++"
         CLANG_LLVM_OBJCOPY: "objcopy"
         CLANG_NO_OPTNONE: "1"
+        CFLAGS: "-Wno-error"
     }
 }
 
@@ -72,6 +74,7 @@ sulong-gateTest60-linux: ${sulong-gateTest-linux} ${sulong-gateTest-default-tool
     environment: {
         CLANG_CC: "clang-6.0"
         CLANG_CXX: "clang-6.0 --driver-mode=g++"
+        CFLAGS: "-Wno-error"
     }
 }
 
@@ -82,6 +85,7 @@ sulong-gateTest80-linux: ${sulong-gateTest-linux} ${sulong-gateTest-default-tool
     environment: {
         CLANG_CC: "clang-8"
         CLANG_CXX: "clang-8 --driver-mode=g++"
+        CFLAGS: "-Wno-error"
     }
 }
 
@@ -131,10 +135,11 @@ sulong-ruby-downstream-test: {
     timelimit: "45:00"
 }
 
-sulong-gate-asm-parser: ${sulong-gateCommon} ${linux-amd64} {
+sulong-gate-generated-sources: ${sulong-gateCommon} ${linux-amd64} {
   run: [
-    ["mx", "create-parsers"]
-    ["git", "diff", "--exit-code", "projects/"]
+    ["mx", "build", "--dependencies", "LLVM_TOOLCHAIN"]
+    ["mx", "create-generated-sources"]
+    ["git", "diff", "--exit-code", "."]
   ]
 }
 
@@ -165,7 +170,7 @@ sulong-test-toolchain: [
 builds += [
   ${sulong-gateStyle} { name: gate-sulong-style, run: [[mx, gate, --tags, "style"]] }
   ${sulong-gateStyle} ${jdt} { name: gate-sulong-fullbuild, run: [[mx, gate, --tags, "fullbuild"]] }
-  ${sulong-gate-asm-parser} { name: gate-sulong-asm-parser }
+  ${sulong-gate-generated-sources} { name: gate-sulong-generated-sources }
   ${sulong-gateTestLLVMorg-linux} ${requireGCC} { name: gate-sulong-misc, run: [
     [mx, gate, --tags, "build,sulongMisc"]
   ] ${sulong-test-toolchain} }

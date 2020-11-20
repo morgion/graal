@@ -31,8 +31,8 @@ package com.oracle.truffle.llvm.runtime.interop;
 
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.GenerateUncached;
+import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.Specialization;
-import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.library.CachedLibrary;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.llvm.runtime.interop.LLVMDataEscapeNodeFactory.LLVMDoubleDataEscapeNodeGen;
@@ -169,6 +169,12 @@ public abstract class LLVMDataEscapeNode extends LLVMNode {
     @GenerateUncached
     public abstract static class LLVMI16DataEscapeNode extends LLVMDataEscapeNode {
 
+        public final short executeWithTargetI16(Object escapingValue) {
+            return executeWithTypeI16(escapingValue, null);
+        }
+
+        public abstract short executeWithTypeI16(Object escapingValue, LLVMInteropType.Structured type);
+
         @Specialization
         static short escapingPrimitive(short escapingValue, @SuppressWarnings("unused") LLVMInteropType.Structured type) {
             return escapingValue;
@@ -177,6 +183,12 @@ public abstract class LLVMDataEscapeNode extends LLVMNode {
 
     @GenerateUncached
     public abstract static class LLVMI32DataEscapeNode extends LLVMDataEscapeNode {
+
+        public final int executeWithTargetI32(Object escapingValue) {
+            return executeWithTypeI32(escapingValue, null);
+        }
+
+        public abstract int executeWithTypeI32(Object escapingValue, LLVMInteropType.Structured type);
 
         @Specialization
         static int escapingPrimitive(int escapingValue, @SuppressWarnings("unused") LLVMInteropType.Structured type) {
@@ -191,6 +203,12 @@ public abstract class LLVMDataEscapeNode extends LLVMNode {
 
     @GenerateUncached
     public abstract static class LLVMI64DataEscapeNode extends LLVMDataEscapeNode {
+
+        public final long executeWithTargetI64(Object escapingValue) {
+            return executeWithTypeI64(escapingValue, null);
+        }
+
+        public abstract long executeWithTypeI64(Object escapingValue, LLVMInteropType.Structured type);
 
         @Specialization
         static long escapingPrimitive(long escapingValue, @SuppressWarnings("unused") LLVMInteropType.Structured type) {
@@ -249,6 +267,7 @@ public abstract class LLVMDataEscapeNode extends LLVMNode {
     }
 
     @GenerateUncached
+    @ReportPolymorphism
     public abstract static class LLVMPointerDataEscapeNode extends LLVMDataEscapeNode {
 
         @Specialization
@@ -257,7 +276,7 @@ public abstract class LLVMDataEscapeNode extends LLVMNode {
         }
 
         @Specialization
-        static TruffleObject escapingType(LLVMInteropType escapingValue, @SuppressWarnings("unused") LLVMInteropType.Structured type) {
+        static Object escapingType(LLVMInteropType escapingValue, @SuppressWarnings("unused") LLVMInteropType.Structured type) {
             return escapingValue;
         }
 
@@ -265,15 +284,15 @@ public abstract class LLVMDataEscapeNode extends LLVMNode {
             return object instanceof Long || object instanceof Double;
         }
 
-        @Specialization(guards = {"!isPrimitiveValue(object)", "foreigns.isForeign(object)"})
+        @Specialization(guards = {"!isPrimitiveValue(object)", "foreigns.isForeign(object)"}, limit = "3")
         static Object escapingForeignNonPointer(Object object, @SuppressWarnings("unused") LLVMInteropType.Structured type,
-                        @CachedLibrary(limit = "3") LLVMAsForeignLibrary foreigns) {
+                        @CachedLibrary("object") LLVMAsForeignLibrary foreigns) {
             return foreigns.asForeign(object);
         }
 
-        @Specialization(guards = "!foreigns.isForeign(address)")
+        @Specialization(guards = "!foreigns.isForeign(address)", limit = "3")
         static Object escapingManaged(LLVMPointer address, @SuppressWarnings("unused") LLVMInteropType.Structured type,
-                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMAsForeignLibrary foreigns,
+                        @SuppressWarnings("unused") @CachedLibrary("address") LLVMAsForeignLibrary foreigns,
                         @Cached ConditionProfile typedProfile) {
             // fallthrough: the value escapes as LLVM pointer object
 

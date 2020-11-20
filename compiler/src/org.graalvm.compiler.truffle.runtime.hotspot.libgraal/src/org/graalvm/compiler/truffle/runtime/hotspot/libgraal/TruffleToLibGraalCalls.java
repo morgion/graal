@@ -39,7 +39,6 @@ import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibG
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetGraphDumpDirectory;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetInfopoints;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetInfopointsCount;
-import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetInitialOptions;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetMarksCount;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetNodeCount;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.GetNodeTypes;
@@ -54,14 +53,13 @@ import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibG
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.InstallTruffleCallBoundaryMethods;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.IsBasicDumpEnabled;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.IsDumpChannelOpen;
+import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.IsPrintGraphEnabled;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.NewCompiler;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.OpenCompilation;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.OpenDebugContext;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.OpenDebugContextScope;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.PendingTransferToInterpreterOffset;
 import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.Shutdown;
-import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.TtyWriteByte;
-import static org.graalvm.compiler.truffle.common.hotspot.libgraal.TruffleToLibGraal.Id.TtyWriteBytes;
 
 import java.nio.ByteBuffer;
 
@@ -89,8 +87,8 @@ final class TruffleToLibGraalCalls {
     @TruffleToLibGraal(InitializeCompiler)
     static native void initializeCompiler(long isolateThreadId, long compilerHandle, byte[] options, CompilableTruffleAST compilable, boolean firstInitialization);
 
-    @TruffleToLibGraal(GetInitialOptions)
-    static native byte[] getInitialOptions(long isolateThreadId, long truffleRuntimeHandle);
+    @TruffleToLibGraal(IsPrintGraphEnabled)
+    static native boolean isPrintGraphEnabled(long isolateThreadId, long truffleRuntimeHandle);
 
     @TruffleToLibGraal(OpenCompilation)
     static native long openCompilation(long isolateThreadId, long handle, CompilableTruffleAST compilable);
@@ -188,12 +186,6 @@ final class TruffleToLibGraalCalls {
 
     @TruffleToLibGraal(DumpChannelClose)
     static native void dumpChannelClose(long isolateThreadId, long channelHandle);
-
-    @TruffleToLibGraal(TtyWriteByte)
-    static native void ttyWriteByte(long isolateThreadId, int b);
-
-    @TruffleToLibGraal(TtyWriteBytes)
-    static native void ttyWriteBytes(long isolateThreadId, byte[] b, int offset, int len);
 
     @TruffleToLibGraal(GetExecutionID)
     static native String getExecutionID(long isolateThreadId);

@@ -33,9 +33,12 @@ import static org.graalvm.compiler.replacements.nodes.UnaryMathIntrinsicNode.Una
 import static org.graalvm.compiler.replacements.nodes.UnaryMathIntrinsicNode.UnaryOperation.TAN;
 
 import org.graalvm.compiler.lir.aarch64.AArch64ArithmeticLIRGeneratorTool.RoundingMode;
+import org.graalvm.compiler.nodes.NodeView;
 import org.graalvm.compiler.nodes.ValueNode;
 import org.graalvm.compiler.nodes.calc.AbsNode;
 import org.graalvm.compiler.nodes.calc.IntegerMulHighNode;
+import org.graalvm.compiler.nodes.calc.MaxNode;
+import org.graalvm.compiler.nodes.calc.MinNode;
 import org.graalvm.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration.Plugins;
 import org.graalvm.compiler.nodes.graphbuilderconf.GraphBuilderContext;
 import org.graalvm.compiler.nodes.graphbuilderconf.InvocationPlugin;
@@ -45,9 +48,10 @@ import org.graalvm.compiler.nodes.graphbuilderconf.InvocationPlugins.Registratio
 import org.graalvm.compiler.nodes.java.ArrayLengthNode;
 import org.graalvm.compiler.nodes.java.AtomicReadAndAddNode;
 import org.graalvm.compiler.nodes.java.AtomicReadAndWriteNode;
-import org.graalvm.compiler.nodes.memory.address.AddressNode;
-import org.graalvm.compiler.nodes.memory.address.OffsetAddressNode;
 import org.graalvm.compiler.nodes.spi.Replacements;
+import org.graalvm.compiler.replacements.StandardGraphBuilderPlugins.UnsafeAccessPlugin;
+import org.graalvm.compiler.replacements.StandardGraphBuilderPlugins.UnsafeGetPlugin;
+import org.graalvm.compiler.replacements.StandardGraphBuilderPlugins.UnsafePutPlugin;
 import org.graalvm.compiler.replacements.TargetGraphBuilderPlugins;
 import org.graalvm.compiler.replacements.nodes.ArrayCompareToNode;
 import org.graalvm.compiler.replacements.nodes.BinaryMathIntrinsicNode;
@@ -55,7 +59,6 @@ import org.graalvm.compiler.replacements.nodes.FusedMultiplyAddNode;
 import org.graalvm.compiler.replacements.nodes.UnaryMathIntrinsicNode;
 import org.graalvm.compiler.replacements.nodes.UnaryMathIntrinsicNode.UnaryOperation;
 import org.graalvm.compiler.serviceprovider.JavaVersionUtil;
-import org.graalvm.word.LocationIdentity;
 
 import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.meta.JavaKind;
@@ -82,7 +85,7 @@ public class AArch64GraphBuilderPlugins implements TargetGraphBuilderPlugins {
                     registerStringLatin1Plugins(invocationPlugins, replacements);
                     registerStringUTF16Plugins(invocationPlugins, replacements);
                 }
-                registerUnsafePlugins(invocationPlugins, replacements);
+                registerUnsafePlugins(invocationPlugins, replacements, explicitUnsafeNullChecks);
                 // This is temporarily disabled until we implement correct emitting of the CAS
                 // instructions of the proper width.
                 registerPlatformSpecificUnsafePlugins(invocationPlugins, replacements, explicitUnsafeNullChecks,
@@ -167,6 +170,7 @@ public class AArch64GraphBuilderPlugins implements TargetGraphBuilderPlugins {
                 }
             });
         }
+        registerMinMax(r);
     }
 
     private static void registerFMA(Registration r) {
@@ -213,6 +217,27 @@ public class AArch64GraphBuilderPlugins implements TargetGraphBuilderPlugins {
                 return true;
             }
         });
+    }
+
+    private static void registerMinMax(Registration r) {
+        JavaKind[] supportedKinds = {JavaKind.Float, JavaKind.Double};
+
+        for (JavaKind kind : supportedKinds) {
+            r.register2("max", kind.toJavaClass(), kind.toJavaClass(), new InvocationPlugin() {
+                @Override
+                public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode x, ValueNode y) {
+                    b.push(kind, b.append(MaxNode.create(x, y, NodeView.DEFAULT)));
+                    return true;
+                }
+            });
+            r.register2("min", kind.toJavaClass(), kind.toJavaClass(), new InvocationPlugin() {
+                @Override
+                public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode x, ValueNode y) {
+                    b.push(kind, b.append(MinNode.create(x, y, NodeView.DEFAULT)));
+                    return true;
+                }
+            });
+        }
     }
 
     private static void registerUnaryMath(Registration r, String name, UnaryOperation operation) {
@@ -290,41 +315,47 @@ public class AArch64GraphBuilderPlugins implements TargetGraphBuilderPlugins {
         }
     }
 
-    private static void registerUnsafePlugins(InvocationPlugins plugins, Replacements replacements) {
-        registerUnsafePlugins(new Registration(plugins, Unsafe.class),
+    private static void registerUnsafePlugins(InvocationPlugins plugins, Replacements replacements, boolean explicitUnsafeNullChecks) {
+        registerUnsafePlugins(new Registration(plugins, Unsafe.class), explicitUnsafeNullChecks,
                         new JavaKind[]{JavaKind.Int, JavaKind.Long, JavaKind.Object}, "Object");
         if (JavaVersionUtil.JAVA_SPEC > 8) {
-            registerUnsafePlugins(new Registration(plugins, "jdk.internal.misc.Unsafe", replacements),
-                            new JavaKind[]{JavaKind.Int, JavaKind.Long, JavaKind.Object},
+            Registration r = new Registration(plugins, "jdk.internal.misc.Unsafe", replacements);
+            registerUnsafePlugins(r, explicitUnsafeNullChecks, new JavaKind[]{JavaKind.Int, JavaKind.Long, JavaKind.Object},
                             JavaVersionUtil.JAVA_SPEC <= 11 ? "Object" : "Reference");
+            registerUnsafeUnalignedPlugins(r, explicitUnsafeNullChecks);
         }
     }
 
-    private static void registerUnsafePlugins(Registration r, JavaKind[] unsafeJavaKinds, String objectKindName) {
+    private static void registerUnsafeUnalignedPlugins(Registration r, boolean explicitUnsafeNullChecks) {
+        for (JavaKind kind : new JavaKind[]{JavaKind.Char, JavaKind.Short, JavaKind.Int, JavaKind.Long}) {
+            Class<?> javaClass = kind.toJavaClass();
+            r.registerOptional3("get" + kind.name() + "Unaligned", Receiver.class, Object.class, long.class, new UnsafeGetPlugin(kind, explicitUnsafeNullChecks));
+            r.registerOptional4("put" + kind.name() + "Unaligned", Receiver.class, Object.class, long.class, javaClass, new UnsafePutPlugin(kind, explicitUnsafeNullChecks));
+        }
+    }
+
+    private static void registerUnsafePlugins(Registration r, boolean explicitUnsafeNullChecks, JavaKind[] unsafeJavaKinds, String objectKindName) {
 
         for (JavaKind kind : unsafeJavaKinds) {
             Class<?> javaClass = kind == JavaKind.Object ? Object.class : kind.toJavaClass();
             String kindName = kind == JavaKind.Object ? objectKindName : kind.name();
-            r.register4("getAndSet" + kindName, Receiver.class, Object.class, long.class, javaClass, new InvocationPlugin() {
+            r.register4("getAndSet" + kindName, Receiver.class, Object.class, long.class, javaClass, new UnsafeAccessPlugin(kind, explicitUnsafeNullChecks) {
                 @Override
                 public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver unsafe, ValueNode object, ValueNode offset, ValueNode value) {
                     // Emits a null-check for the otherwise unused receiver
                     unsafe.get();
-                    b.addPush(kind, new AtomicReadAndWriteNode(object, offset, value, kind, LocationIdentity.any()));
-                    b.getGraph().markUnsafeAccess();
+                    createUnsafeAccess(object, b, (obj, loc) -> new AtomicReadAndWriteNode(obj, offset, value, kind, loc));
                     return true;
                 }
             });
 
             if (kind != JavaKind.Boolean && kind.isNumericInteger()) {
-                r.register4("getAndAdd" + kindName, Receiver.class, Object.class, long.class, javaClass, new InvocationPlugin() {
+                r.register4("getAndAdd" + kindName, Receiver.class, Object.class, long.class, javaClass, new UnsafeAccessPlugin(kind, explicitUnsafeNullChecks) {
                     @Override
                     public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver unsafe, ValueNode object, ValueNode offset, ValueNode delta) {
                         // Emits a null-check for the otherwise unused receiver
                         unsafe.get();
-                        AddressNode address = b.add(new OffsetAddressNode(object, offset));
-                        b.addPush(kind, new AtomicReadAndAddNode(address, delta, kind, LocationIdentity.any()));
-                        b.getGraph().markUnsafeAccess();
+                        createUnsafeAccess(object, b, (obj, loc) -> new AtomicReadAndAddNode(obj, offset, delta, kind, loc));
                         return true;
                     }
                 });

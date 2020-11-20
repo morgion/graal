@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Formatter;
 import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
@@ -56,6 +57,7 @@ import jdk.vm.ci.aarch64.AArch64;
 import jdk.vm.ci.amd64.AMD64;
 import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.hotspot.HotSpotVMConfigStore;
+import jdk.vm.ci.hotspot.VMField;
 import jdk.vm.ci.hotspot.VMIntrinsicMethod;
 import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.MetaUtil;
@@ -291,8 +293,6 @@ public class CheckGraalIntrinsics extends GraalTest {
                             // Emits a slow and a fast path and some dispatching logic
                             "jdk/internal/misc/Unsafe.allocateUninitializedArray0(Ljava/lang/Class;I)Ljava/lang/Object;",
 
-                            // Control flow, deopts, and a cast
-                            "jdk/internal/util/Preconditions.checkIndex(IILjava/util/function/BiFunction;)I",
                             // HotSpot MacroAssembler-based intrinsic
                             "sun/nio/cs/ISO_8859_1$Encoder.implEncodeISOArray([CI[BII)I");
 
@@ -389,6 +389,12 @@ public class CheckGraalIntrinsics extends GraalTest {
             }
         }
 
+        if (hasAESElectronicCodebookStubRoutineFields()) {
+            add(toBeInvestigated,
+                            "com/sun/crypto/provider/ElectronicCodeBook.implECBDecrypt([BII[BI)I",
+                            "com/sun/crypto/provider/ElectronicCodeBook.implECBEncrypt([BII[BI)I");
+        }
+
         if (isJDK11OrHigher()) {
             // Relevant for Java flight recorder
             add(toBeInvestigated,
@@ -407,13 +413,12 @@ public class CheckGraalIntrinsics extends GraalTest {
             if (!(arch instanceof AArch64)) {
                 add(toBeInvestigated,
                                 "java/lang/Math.abs(I)I",
-                                "java/lang/Math.abs(J)J");
+                                "java/lang/Math.abs(J)J",
+                                "java/lang/Math.max(DD)D",
+                                "java/lang/Math.max(FF)F",
+                                "java/lang/Math.min(DD)D",
+                                "java/lang/Math.min(FF)F");
             }
-            add(toBeInvestigated,
-                            "java/lang/Math.max(DD)D",
-                            "java/lang/Math.max(FF)F",
-                            "java/lang/Math.min(DD)D",
-                            "java/lang/Math.min(FF)F");
             add(toBeInvestigated,
                             "jdk/internal/misc/Unsafe.writeback0(J)V",
                             "jdk/internal/misc/Unsafe.writebackPostSync0()V",
@@ -422,10 +427,17 @@ public class CheckGraalIntrinsics extends GraalTest {
 
         if (isJDK14OrHigher()) {
             add(toBeInvestigated,
-                            "com/sun/crypto/provider/ElectronicCodeBook.implECBDecrypt([BII[BI)I",
-                            "com/sun/crypto/provider/ElectronicCodeBook.implECBEncrypt([BII[BI)I",
                             "java/math/BigInteger.shiftLeftImplWorker([I[IIII)V",
                             "java/math/BigInteger.shiftRightImplWorker([I[IIII)V");
+        }
+
+        if (isJDK16OrHigher()) {
+            add(toBeInvestigated,
+                            "java/lang/Math.copySign(DD)D",
+                            "java/lang/Math.copySign(FF)F",
+                            "java/lang/Math.signum(D)D",
+                            "java/lang/Math.signum(F)F",
+                            "sun/security/provider/MD5.implCompress0([BI)V");
         }
 
         if (!config.inlineNotify()) {
@@ -465,7 +477,7 @@ public class CheckGraalIntrinsics extends GraalTest {
                             "sun/misc/Unsafe.getAndSet" + oopName + "(Ljava/lang/Object;JLjava/lang/Object;)Ljava/lang/Object;");
 
             if (isJDK9OrHigher()) {
-                if (!(arch instanceof AArch64)) {
+                if (isSPARC(arch)) {
                     add(toBeInvestigated,
                                     "java/lang/StringLatin1.compareTo([B[B)I",
                                     "java/lang/StringLatin1.compareToUTF16([B[B)I",
@@ -475,19 +487,19 @@ public class CheckGraalIntrinsics extends GraalTest {
                                     "jdk/internal/misc/Unsafe.getAndAddLong(Ljava/lang/Object;JJ)J",
                                     "jdk/internal/misc/Unsafe.getAndSetInt(Ljava/lang/Object;JI)I",
                                     "jdk/internal/misc/Unsafe.getAndSetLong(Ljava/lang/Object;JJ)J",
-                                    "jdk/internal/misc/Unsafe.getAndSet" + oopName + "(Ljava/lang/Object;JLjava/lang/Object;)Ljava/lang/Object;");
+                                    "jdk/internal/misc/Unsafe.getAndSet" + oopName + "(Ljava/lang/Object;JLjava/lang/Object;)Ljava/lang/Object;",
+                                    "jdk/internal/misc/Unsafe.getCharUnaligned(Ljava/lang/Object;J)C",
+                                    "jdk/internal/misc/Unsafe.getIntUnaligned(Ljava/lang/Object;J)I",
+                                    "jdk/internal/misc/Unsafe.getLongUnaligned(Ljava/lang/Object;J)J",
+                                    "jdk/internal/misc/Unsafe.getShortUnaligned(Ljava/lang/Object;J)S",
+                                    "jdk/internal/misc/Unsafe.putCharUnaligned(Ljava/lang/Object;JC)V",
+                                    "jdk/internal/misc/Unsafe.putIntUnaligned(Ljava/lang/Object;JI)V",
+                                    "jdk/internal/misc/Unsafe.putLongUnaligned(Ljava/lang/Object;JJ)V",
+                                    "jdk/internal/misc/Unsafe.putShortUnaligned(Ljava/lang/Object;JS)V");
                 }
                 add(toBeInvestigated,
                                 "java/lang/Thread.onSpinWait()V",
-                                "java/util/ArraysSupport.vectorizedMismatch(Ljava/lang/Object;JLjava/lang/Object;JII)I",
-                                "jdk/internal/misc/Unsafe.getCharUnaligned(Ljava/lang/Object;J)C",
-                                "jdk/internal/misc/Unsafe.getIntUnaligned(Ljava/lang/Object;J)I",
-                                "jdk/internal/misc/Unsafe.getLongUnaligned(Ljava/lang/Object;J)J",
-                                "jdk/internal/misc/Unsafe.getShortUnaligned(Ljava/lang/Object;J)S",
-                                "jdk/internal/misc/Unsafe.putCharUnaligned(Ljava/lang/Object;JC)V",
-                                "jdk/internal/misc/Unsafe.putIntUnaligned(Ljava/lang/Object;JI)V",
-                                "jdk/internal/misc/Unsafe.putLongUnaligned(Ljava/lang/Object;JJ)V",
-                                "jdk/internal/misc/Unsafe.putShortUnaligned(Ljava/lang/Object;JS)V");
+                                "java/util/ArraysSupport.vectorizedMismatch(Ljava/lang/Object;JLjava/lang/Object;JII)I");
             }
             if (isJDK10OrHigher()) {
                 add(toBeInvestigated,
@@ -574,6 +586,19 @@ public class CheckGraalIntrinsics extends GraalTest {
         }
     }
 
+    /**
+     * Determines if the StubRoutines corresponding to JDK-8225625 are potentially available. That
+     * is, are the fields pointing to these routines defined. The routines themselves will only be
+     * generated if the following code in the VM condition is true:
+     * {@code VM_Version::supports_vaes() && VM_Version::supports_avx512vl() && VM_Version::supports_avx512dq()}
+     */
+    private boolean hasAESElectronicCodebookStubRoutineFields() {
+        HotSpotVMConfigStore store = config.getStore();
+        Map<String, VMField> fields = store.getFields();
+        return fields.containsKey("StubRoutines::_electronicCodeBook_encryptAESCrypt") &&
+                        fields.containsKey("StubRoutines::_electronicCodeBook_decryptAESCrypt");
+    }
+
     private static boolean isJDK9OrHigher() {
         return JavaVersionUtil.JAVA_SPEC >= 9;
     }
@@ -596,6 +621,10 @@ public class CheckGraalIntrinsics extends GraalTest {
 
     private static boolean isJDK14OrHigher() {
         return JavaVersionUtil.JAVA_SPEC >= 14;
+    }
+
+    private static boolean isJDK16OrHigher() {
+        return JavaVersionUtil.JAVA_SPEC >= 16;
     }
 
     public interface Refiner {

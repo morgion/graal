@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import org.graalvm.compiler.api.replacements.Snippet;
@@ -51,6 +52,7 @@ import org.graalvm.compiler.graph.NodeSourcePosition;
 import org.graalvm.compiler.nodes.Cancellable;
 import org.graalvm.compiler.nodes.EncodedGraph;
 import org.graalvm.compiler.nodes.GraphEncoder;
+import org.graalvm.compiler.nodes.Invoke;
 import org.graalvm.compiler.nodes.StructuredGraph;
 import org.graalvm.compiler.nodes.StructuredGraph.AllowAssumptions;
 import org.graalvm.compiler.nodes.ValueNode;
@@ -204,7 +206,7 @@ public class SubstrateReplacements extends ReplacementsImpl {
         try (DebugContext debug = openDebugContext("SVMSnippet_", method, options)) {
             StructuredGraph result = new StructuredGraph.Builder(options, debug).method(method).trackNodeSourcePosition(trackNodeSourcePosition).setIsSubstitution(true).build();
             PEGraphDecoder graphDecoder = new PEGraphDecoder(ConfigurationValues.getTarget().arch, result, providers, null, snippetInvocationPlugins, new InlineInvokePlugin[0], parameterPlugin, null,
-                            null, null) {
+                            null, null, new ConcurrentHashMap<>(), new ConcurrentHashMap<>()) {
 
                 private IntrinsicContext intrinsic = new IntrinsicContext(method, null, providers.getReplacements().getDefaultReplacementBytecodeProvider(), INLINE_AFTER_PARSING, false);
 
@@ -323,7 +325,8 @@ public class SubstrateReplacements extends ReplacementsImpl {
     }
 
     @Override
-    public StructuredGraph getSubstitution(ResolvedJavaMethod original, int invokeBci, boolean trackNodeSourcePosition, NodeSourcePosition replaceePosiion, AllowAssumptions allowAssumptions,
+    public StructuredGraph getInlineSubstitution(ResolvedJavaMethod original, int invokeBci, Invoke.InlineControl inlineControl, boolean trackNodeSourcePosition, NodeSourcePosition replaceePosiion,
+                    AllowAssumptions allowAssumptions,
                     OptionValues options) {
         // This override keeps graphBuilderPlugins from being reached during image generation.
         return null;

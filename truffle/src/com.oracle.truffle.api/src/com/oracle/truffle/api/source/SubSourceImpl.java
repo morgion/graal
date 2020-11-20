@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -82,6 +82,11 @@ final class SubSourceImpl extends Source {
 
     @Override
     protected Object getSourceId() {
+        return key;
+    }
+
+    @Override
+    Object getSourceKey() {
         return key;
     }
 

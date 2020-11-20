@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -144,11 +144,9 @@ public final class Source {
         return IMPL;
     }
 
-    final String language;
     final Object impl;
 
-    Source(String language, Object impl) {
-        this.language = language;
+    Source(Object impl) {
         this.impl = impl;
     }
 
@@ -159,7 +157,7 @@ public final class Source {
      * @since 19.0
      */
     public String getLanguage() {
-        return language;
+        return getImpl().getLanguage(impl);
     }
 
     /**
@@ -679,7 +677,7 @@ public final class Source {
         return new IllegalArgumentException(String.format("Invalid MIME type '%s' provided. A MIME type consists of a type and a subtype separated by '/'.", mimeType));
     }
 
-    private static final Source EMPTY = new Source(null, null);
+    private static final Source EMPTY = new Source(null);
 
     /**
      * Represents a builder to build {@link Source} objects.

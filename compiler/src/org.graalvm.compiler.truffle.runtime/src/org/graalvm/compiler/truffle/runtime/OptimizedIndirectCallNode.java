@@ -28,9 +28,7 @@ import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.nodes.EncapsulatingNodeReference;
 import com.oracle.truffle.api.nodes.IndirectCallNode;
-import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.NodeInfo;
 import com.oracle.truffle.api.profiles.ValueProfile;
 
@@ -41,6 +39,7 @@ import com.oracle.truffle.api.profiles.ValueProfile;
 public final class OptimizedIndirectCallNode extends IndirectCallNode {
 
     @CompilationFinal private ValueProfile exceptionProfile;
+    @CompilationFinal private boolean seenInInterpreter;
 
     /*
      * Should be instantiated with the runtime.
@@ -51,7 +50,27 @@ public final class OptimizedIndirectCallNode extends IndirectCallNode {
     @Override
     public Object call(CallTarget target, Object... arguments) {
         try {
-            return ((OptimizedCallTarget) target).callIndirect(this, arguments);
+            OptimizedCallTarget optimizedTarget = ((OptimizedCallTarget) target);
+
+            if (CompilerDirectives.inInterpreter() && !seenInInterpreter) {
+                /*
+                 * No need to deoptimize to modify compilation final state as we only execute this
+                 * in the interpreter.
+                 */
+                this.seenInInterpreter = true;
+            }
+
+            /*
+             * Indirect calls should not cause invalidations if they were compiled prior to
+             * execution. We rather produce a truffle boundary call to the interpreter profile and
+             * escape the arguments.
+             */
+            if (this.seenInInterpreter) {
+                optimizedTarget.stopProfilingArguments();
+            } else {
+                profileIndirectArguments(optimizedTarget, arguments);
+            }
+            return optimizedTarget.callIndirect(this, arguments);
         } catch (Throwable t) {
             if (exceptionProfile == null) {
                 CompilerDirectives.transferToInterpreterAndInvalidate();
@@ -63,29 +82,9 @@ public final class OptimizedIndirectCallNode extends IndirectCallNode {
         }
     }
 
-    static IndirectCallNode createUncached() {
-        return new IndirectCallNode() {
-            @Override
-            public boolean isAdoptable() {
-                return false;
-            }
-
-            @Override
-            @TruffleBoundary
-            public Object call(CallTarget target, Object... arguments) {
-                /*
-                 * Clear encapsulating node for uncached indirect call boundary. The encapsulating
-                 * node is not longer needed if a call boundary is crossed.
-                 */
-                EncapsulatingNodeReference encapsulating = EncapsulatingNodeReference.getCurrent();
-                Node prev = encapsulating.set(null);
-                try {
-                    return ((OptimizedCallTarget) target).callIndirect(prev, arguments);
-                } finally {
-                    encapsulating.set(prev);
-                }
-            }
-        };
+    @TruffleBoundary
+    private static void profileIndirectArguments(OptimizedCallTarget optimizedTarget, Object... arguments) {
+        optimizedTarget.profileArguments(arguments);
     }
 
 }

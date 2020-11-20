@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -203,6 +203,9 @@ public class IntrinsifyMethodHandlesInvocationPlugin implements NodePlugin {
 
         methodHandleType = universeProviders.getMetaAccess().lookupJavaType(java.lang.invoke.MethodHandle.class);
         methodHandleInvokeMethodNames = new HashSet<>(Arrays.asList("invokeExact", "invoke", "invokeBasic", "linkToVirtual", "linkToStatic", "linkToSpecial", "linkToInterface"));
+        if (NativeImageOptions.areMethodHandlesSupported()) {
+            methodHandleInvokeMethodNames.remove("invokeBasic");
+        }
 
         if (JavaVersionUtil.JAVA_SPEC >= 11) {
             try {
@@ -379,6 +382,11 @@ public class IntrinsifyMethodHandlesInvocationPlugin implements NodePlugin {
                 ResolvedJavaType convertedType = optionalLookup(type);
                 return convertedType != null && ((HostedType) convertedType).isInstantiated();
             }
+        }
+
+        @Override
+        public boolean isGuaranteedSafepoint(ResolvedJavaMethod method, boolean isDirect) {
+            throw VMError.shouldNotReachHere();
         }
     }
 
@@ -757,9 +765,10 @@ public class IntrinsifyMethodHandlesInvocationPlugin implements NodePlugin {
             return;
 
         } else {
-            throw new UnsupportedFeatureException(message + System.lineSeparator() + "To diagnose the issue, you can add the option " +
+            throw new UnsupportedFeatureException(message + System.lineSeparator() +
+                            "To enable method handles that do not require LambdaForm interpretation (e.g. because of a call to MethodHandle.bindTo()) or to diagnose the issue, you can add the option " +
                             SubstrateOptionsParser.commandArgument(NativeImageOptions.ReportUnsupportedElementsAtRuntime, "+") +
-                            ". The error is then reported at run time when the invoke is executed.");
+                            ". The error is then reported at run time when the invoke is executed and the method handle has to be interpreted.");
         }
     }
 
@@ -783,6 +792,7 @@ public class IntrinsifyMethodHandlesInvocationPlugin implements NodePlugin {
     }
 
     private ResolvedJavaField lookup(ResolvedJavaField field) {
+        aUniverse.lookup(field.getDeclaringClass()).registerAsReachable();
         ResolvedJavaField result = aUniverse.lookup(field);
         if (hUniverse != null) {
             result = hUniverse.lookup(result);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -883,8 +883,12 @@ public class ExportsGenerator extends CodeTypeElementFactory<ExportsData> {
                 acceptsBuilder.string(name);
             }
         } else {
-            if (libraryExports.isFinalReceiver()) {
-                acceptsBuilder.string(receiverName, " instanceof ").type(exportReceiverType);
+            if (libraryExports.isFinalReceiver() || (!cached && libraryExports.getLibrary().isDynamicDispatch())) {
+                if (ElementUtils.isObject(exportReceiverType)) {
+                    acceptsBuilder.string("true");
+                } else {
+                    acceptsBuilder.string(receiverName, " instanceof ").type(exportReceiverType);
+                }
             } else {
                 TypeMirror receiverType = libraryExports.getReceiverType();
                 TypeMirror receiverClassType = new CodeTypeMirror.DeclaredCodeTypeMirror(context.getTypeElement(Class.class),
@@ -952,7 +956,6 @@ public class ExportsGenerator extends CodeTypeElementFactory<ExportsData> {
 
         final TypeElement libraryBaseTypeElement = libraryExports.getLibrary().getTemplateType();
         final DeclaredType libraryBaseType = (DeclaredType) libraryBaseTypeElement.asType();
-        final TypeMirror libraryReceiverType = libraryExports.getLibrary().getExportsReceiverType();
 
         CodeTypeElement uncachedClass = createClass(libraryExports, null, modifiers(PRIVATE, STATIC, FINAL), "Uncached", libraryBaseType);
 
@@ -1044,7 +1047,8 @@ public class ExportsGenerator extends CodeTypeElementFactory<ExportsData> {
 
             // uncached execute
             TypeMirror uncachedReceiverType = export.getReceiverType();
-            CodeTree uncachedReceiverExport = CodeTreeBuilder.createBuilder().maybeCast(libraryReceiverType, uncachedReceiverType, "receiver").build();
+            TypeMirror messageReceiverType = message.getExecutable().getParameters().get(0).asType();
+            CodeTree uncachedReceiverExport = CodeTreeBuilder.createBuilder().maybeCast(messageReceiverType, uncachedReceiverType, "receiver").build();
             CodeExecutableElement uncachedExecute;
             NodeData uncachedSpecializedNode = export.getSpecializedNode();
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -89,9 +89,10 @@ public final class SpecializationData extends TemplateMethod {
     private DSLExpression limitExpression;
     private SpecializationData uncachedSpecialization;
     private final boolean reportPolymorphism;
+    private final boolean reportMegamorphism;
 
     public SpecializationData(NodeData node, TemplateMethod template, SpecializationKind kind, List<SpecializationThrowsData> exceptions, boolean hasUnexpectedResultRewrite,
-                    boolean reportPolymorphism) {
+                    boolean reportPolymorphism, boolean reportMegamorphism) {
         super(template);
         this.node = node;
         this.kind = kind;
@@ -99,10 +100,11 @@ public final class SpecializationData extends TemplateMethod {
         this.hasUnexpectedResultRewrite = hasUnexpectedResultRewrite;
         this.index = template.getNaturalOrder();
         this.reportPolymorphism = reportPolymorphism;
+        this.reportMegamorphism = reportMegamorphism;
     }
 
     public SpecializationData copy() {
-        SpecializationData copy = new SpecializationData(node, this, kind, new ArrayList<>(exceptions), hasUnexpectedResultRewrite, reportPolymorphism);
+        SpecializationData copy = new SpecializationData(node, this, kind, new ArrayList<>(exceptions), hasUnexpectedResultRewrite, reportPolymorphism, reportMegamorphism);
         copy.guards.addAll(guards);
         copy.caches = new ArrayList<>(caches);
         copy.assumptionExpressions = new ArrayList<>(assumptionExpressions);
@@ -124,6 +126,63 @@ public final class SpecializationData extends TemplateMethod {
 
     public SpecializationData getUncachedSpecialization() {
         return uncachedSpecialization;
+    }
+
+    public boolean needsVirtualFrame() {
+        if (getFrame() != null && ElementUtils.typeEquals(getFrame().getType(), types.VirtualFrame)) {
+            // not supported for frames
+            return true;
+        }
+        return false;
+    }
+
+    public boolean needsTruffleBoundary() {
+        for (CacheExpression cache : caches) {
+            if (cache.isAlwaysInitialized() && cache.isRequiresBoundary()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean needsPushEncapsulatingNode() {
+        for (CacheExpression cache : caches) {
+            if (cache.isAlwaysInitialized() && cache.isRequiresBoundary() && cache.isCachedLibrary()) {
+                if (cache.getCachedLibrary().isPushEncapsulatingNode()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean isAnyLibraryBoundInGuard() {
+        for (CacheExpression cache : getCaches()) {
+            if (!cache.isCachedLibrary()) {
+                continue;
+            }
+            if (isLibraryBoundInGuard(cache)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isLibraryBoundInGuard(CacheExpression cachedLibrary) {
+        if (!cachedLibrary.isCachedLibrary()) {
+            return false;
+        }
+        for (GuardExpression guard : getGuards()) {
+            if (guard.isLibraryAcceptsGuard()) {
+                continue;
+            }
+            for (CacheExpression cacheExpression : getBoundCaches(guard.getExpression(), true)) {
+                if (cacheExpression.getParameter().equals(cachedLibrary.getParameter())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean isTrivialExpression(DSLExpression expression) {
@@ -159,6 +218,10 @@ public final class SpecializationData extends TemplateMethod {
 
     public boolean isReportPolymorphism() {
         return reportPolymorphism;
+    }
+
+    public boolean isReportMegamorphism() {
+        return reportMegamorphism;
     }
 
     public boolean isReachesFallback() {
@@ -303,7 +366,7 @@ public final class SpecializationData extends TemplateMethod {
     }
 
     public SpecializationData(NodeData node, TemplateMethod template, SpecializationKind kind) {
-        this(node, template, kind, new ArrayList<SpecializationThrowsData>(), false, true);
+        this(node, template, kind, new ArrayList<SpecializationThrowsData>(), false, true, false);
     }
 
     public Set<SpecializationData> getReplaces() {
@@ -437,6 +500,13 @@ public final class SpecializationData extends TemplateMethod {
 
     public int getIndex() {
         return index;
+    }
+
+    public int getIntrospectionIndex() {
+        if (getMethod() == null) {
+            return -1;
+        }
+        return index - 1;
     }
 
     public NodeData getNode() {

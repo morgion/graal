@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -43,11 +43,11 @@ package com.oracle.truffle.api.debug;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.net.URI;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -58,7 +58,6 @@ import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.Scope;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.frame.VirtualFrame;
@@ -72,6 +71,7 @@ import com.oracle.truffle.api.instrumentation.SourceFilter;
 import com.oracle.truffle.api.instrumentation.SourceSectionFilter;
 import com.oracle.truffle.api.instrumentation.TruffleInstrument;
 import com.oracle.truffle.api.interop.InteropLibrary;
+import com.oracle.truffle.api.interop.NodeLibrary;
 import com.oracle.truffle.api.interop.UnsupportedMessageException;
 import com.oracle.truffle.api.nodes.ControlFlowException;
 import com.oracle.truffle.api.nodes.DirectCallNode;
@@ -193,6 +193,8 @@ public class Breakpoint {
     private volatile Assumption conditionExistsUnchanged;
 
     private volatile EventBinding<? extends ExecutionEventNodeFactory> breakpointBinding;
+    private final AtomicBoolean breakpointBindingAttaching = new AtomicBoolean(false);
+    private volatile boolean breakpointBindingReady;
     private volatile Predicate<Source> sourcePredicate;
     private final AtomicReference<EventBinding<?>> sourceBinding = new AtomicReference<>();
 
@@ -356,21 +358,29 @@ public class Breakpoint {
      *
      * @since 0.9
      */
-    public synchronized void dispose() {
-        if (!disposed) {
-            setEnabled(false);
-            final EventBinding<?> binding = sourceBinding.getAndSet(null);
-            if (binding != null) {
-                binding.dispose();
+    public void dispose() {
+        DebuggerSession[] breakpointSessions = null;
+        Debugger breakpointDebugger = null;
+        synchronized (this) {
+            if (!disposed) {
+                setEnabled(false);
+                final EventBinding<?> binding = sourceBinding.getAndSet(null);
+                if (binding != null) {
+                    binding.dispose();
+                }
+                breakpointSessions = sessions.toArray(new DebuggerSession[sessions.size()]);
+                breakpointDebugger = debugger;
+                debugger = null;
+                disposed = true;
             }
-            for (DebuggerSession session : sessions) {
+        }
+        if (breakpointSessions != null) {
+            for (DebuggerSession session : breakpointSessions) {
                 session.disposeBreakpoint(this);
             }
-            if (debugger != null) {
-                debugger.disposeBreakpoint(this);
-                debugger = null;
-            }
-            disposed = true;
+        }
+        if (breakpointDebugger != null) {
+            breakpointDebugger.disposeBreakpoint(this);
         }
     }
 
@@ -463,18 +473,6 @@ public class Breakpoint {
     @Override
     public String toString() {
         return getClass().getSimpleName() + "@" + Integer.toHexString(hashCode());
-    }
-
-    DebuggerNode lookupNode(EventContext context) {
-        if (!isEnabled()) {
-            return null;
-        } else {
-            EventBinding<? extends ExecutionEventNodeFactory> binding = breakpointBinding;
-            if (binding != null) {
-                return (DebuggerNode) context.lookupExecutionEventNode(binding);
-            }
-            return null;
-        }
     }
 
     private synchronized Assumption getConditionUnchanged() {
@@ -593,13 +591,24 @@ public class Breakpoint {
     }
 
     private void assignBinding(SourceSectionFilter locationFilter) {
-        synchronized (this) {
-            if (breakpointBinding == null) {
-                EventBinding<BreakpointNodeFactory> binding = debugger.getInstrumenter().attachExecutionEventFactory(locationFilter, new BreakpointNodeFactory());
-                breakpointBinding = binding;
-                resolved = true;
-                for (DebuggerSession s : sessions) {
-                    s.allBindings.add(binding);
+        boolean attaching = breakpointBindingAttaching.getAndSet(true);
+        if (!attaching) {
+            EventBinding<? extends ExecutionEventNodeFactory> newBinding = null;
+            try {
+                breakpointBinding = newBinding = debugger.getInstrumenter().attachExecutionEventFactory(locationFilter, new BreakpointNodeFactory());
+            } finally {
+                breakpointBindingAttaching.set(false);
+                synchronized (this) {
+                    if (newBinding != null) {
+                        resolved = true;
+                        for (DebuggerSession s : sessions) {
+                            s.allBindings.add(newBinding);
+                        }
+                    }
+                    // If newBinding is null, attach has failed.
+                    // But we notify in any case, breakpoint node might have been installed.
+                    breakpointBindingReady = true;
+                    notifyAll();
                 }
             }
         }
@@ -662,6 +671,7 @@ public class Breakpoint {
         for (DebuggerSession s : sessions) {
             s.allBindings.remove(binding);
         }
+        breakpointBindingReady = false;
         if (binding != null) {
             binding.dispose();
         }
@@ -683,8 +693,18 @@ public class Breakpoint {
             // We're testing a different breakpoint at the same location
             if (rootInstanceRef != null) {
                 Object rootInstance = rootInstanceRef.get();
-                if (rootInstance != null && rootInstance != getCurrentRootInstance(context, this, frame.materialize())) {
-                    return false;
+                if (rootInstance != null) {
+                    Node contextNode = context.getInstrumentedNode();
+                    NodeLibrary contextNodeLibrary = NodeLibrary.getUncached(contextNode);
+                    if (contextNodeLibrary.hasRootInstance(contextNode, frame)) {
+                        try {
+                            if (rootInstance != contextNodeLibrary.getRootInstance(contextNode, frame)) {
+                                return false;
+                            }
+                        } catch (UnsupportedMessageException e) {
+                            throw CompilerDirectives.shouldNotReachHere(e);
+                        }
+                    }
                 }
             }
             AbstractBreakpointNode breakpointNode = ((AbstractBreakpointNode) node);
@@ -746,6 +766,17 @@ public class Breakpoint {
                     internalCompliant = caller != null && !caller.node.getRootNode().isInternal();
                 }
                 if (internalCompliant) {
+                    synchronized (this) {
+                        while (!breakpointBindingReady) {
+                            // We need to wait here till we have the binding ready.
+                            // DebuggerSession.collectDebuggerNodes() would not find the
+                            // breakpoint's node otherwise.
+                            try {
+                                wait();
+                            } catch (InterruptedException e) {
+                            }
+                        }
+                    }
                     DebugException de;
                     if (exception != null) {
                         de = new DebugException(session, exception, null, throwLocation, isCatchNodeComputed, catchLocation);
@@ -1252,21 +1283,12 @@ public class Breakpoint {
         }
     }
 
-    @TruffleBoundary
-    private static Object getCurrentRootInstance(EventContext context, Breakpoint breakpoint, MaterializedFrame frame) {
-        Iterable<Scope> localScopes = breakpoint.debugger.getEnv().findLocalScopes(context.getInstrumentedNode(), frame);
-        Iterator<Scope> localScopesIterator = localScopes.iterator();
-        if (localScopesIterator.hasNext()) {
-            return localScopesIterator.next().getRootInstance();
-        }
-        return null;
-    }
-
     private abstract static class AbstractBreakpointNode extends DebuggerNode {
 
         private final Breakpoint breakpoint;
         protected final BranchProfile breakBranch = BranchProfile.create();
 
+        @Child private NodeLibrary contextNodeLibrary;
         @Child private ConditionalBreakNode breakCondition;
         @CompilationFinal private Assumption conditionExistsUnchanged;
         @CompilationFinal protected boolean activeOnNoninternalCalls;
@@ -1276,6 +1298,9 @@ public class Breakpoint {
         AbstractBreakpointNode(Breakpoint breakpoint, EventContext context) {
             super(context);
             this.breakpoint = breakpoint;
+            if (breakpoint.rootInstanceRef != null) {
+                contextNodeLibrary = NodeLibrary.getFactory().create(context.getInstrumentedNode());
+            }
             this.conditionExistsUnchanged = breakpoint.getConditionExistsUnchanged();
             if (breakpoint.condition != null) {
                 this.breakCondition = new ConditionalBreakNode(context, breakpoint);
@@ -1328,11 +1353,6 @@ public class Breakpoint {
             return breakpoint;
         }
 
-        @Override
-        EventBinding<?> getBinding() {
-            return breakpoint.breakpointBinding;
-        }
-
         protected final Object onNode(VirtualFrame frame, boolean onEnter, Object result, Throwable exception) {
             SessionList sessions = computeUniqueActiveSessions();
             if (sessions == null) {
@@ -1340,19 +1360,9 @@ public class Breakpoint {
             }
             if (breakpoint.rootInstanceRef != null) {
                 Object rootInstance = breakpoint.rootInstanceRef.get();
-                if (rootInstance != null && rootInstance != getCurrentRootInstance(context, breakpoint, frame.materialize())) {
+                if (rootInstance != null && !testRootInstance(rootInstance, frame)) {
                     return result;
                 }
-            }
-            if (!conditionExistsUnchanged.isValid()) {
-                CompilerDirectives.transferToInterpreterAndInvalidate();
-                if (breakpoint.condition != null) {
-                    this.breakCondition = insert(new ConditionalBreakNode(context, breakpoint));
-                    notifyInserted(this.breakCondition);
-                } else {
-                    this.breakCondition = null;
-                }
-                conditionExistsUnchanged = breakpoint.getConditionExistsUnchanged();
             }
             BreakpointConditionFailure conditionError = null;
             try {
@@ -1364,6 +1374,19 @@ public class Breakpoint {
             }
             breakBranch.enter();
             return breakpoint.doBreak(context, this, sessions, activeOnNoninternalCalls, frame.materialize(), onEnter, result, exception, conditionError);
+        }
+
+        private boolean testRootInstance(Object rootInstance, VirtualFrame frame) {
+            if (contextNodeLibrary.hasRootInstance(context.getInstrumentedNode(), frame)) {
+                try {
+                    if (rootInstance != contextNodeLibrary.getRootInstance(context.getInstrumentedNode(), frame)) {
+                        return false;
+                    }
+                } catch (UnsupportedMessageException e) {
+                    throw CompilerDirectives.shouldNotReachHere(e);
+                }
+            }
+            return true;
         }
 
         @ExplodeLoop
@@ -1406,13 +1429,14 @@ public class Breakpoint {
         }
 
         boolean testCondition(VirtualFrame frame) throws BreakpointConditionFailure {
+            ConditionalBreakNode conditionNode = breakCondition;
             if (!conditionExistsUnchanged.isValid()) {
                 CompilerDirectives.transferToInterpreterAndInvalidate();
                 if (breakpoint.condition != null) {
-                    this.breakCondition = insert(new ConditionalBreakNode(context, breakpoint));
-                    notifyInserted(this.breakCondition);
+                    this.breakCondition = conditionNode = insert(new ConditionalBreakNode(context, breakpoint));
+                    notifyInserted(conditionNode);
                 } else {
-                    this.breakCondition = null;
+                    this.breakCondition = conditionNode = null;
                 }
                 conditionExistsUnchanged = breakpoint.getConditionExistsUnchanged();
             }
@@ -1421,9 +1445,9 @@ public class Breakpoint {
                 // no sessions to hit. don't execute the breakpoint.
                 return false;
             }
-            if (breakCondition != null) {
+            if (conditionNode != null) {
                 try {
-                    return breakCondition.executeBreakCondition(frame, localSessions);
+                    return conditionNode.executeBreakCondition(frame, localSessions);
                 } catch (Throwable e) {
                     CompilerDirectives.transferToInterpreter();
                     throw new BreakpointConditionFailure(breakpoint, e);
@@ -1520,6 +1544,7 @@ public class Breakpoint {
                 try {
                     return interopLibrary.asBoolean(result);
                 } catch (UnsupportedMessageException e) {
+                    throw CompilerDirectives.shouldNotReachHere(e);
                 }
             }
             CompilerDirectives.transferToInterpreterAndInvalidate();

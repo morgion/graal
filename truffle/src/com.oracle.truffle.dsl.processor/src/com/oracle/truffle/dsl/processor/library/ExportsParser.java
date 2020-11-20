@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -263,7 +263,8 @@ public class ExportsParser extends AbstractParser<ExportsData> {
          */
         for (ExportMessageData exportedElement : exportedElements) {
             if (exportedElement.isOverriden()) {
-                // must not initialize overriden elements because otherwise the parsedNodeCache gets
+                // must not initialize overridden elements because otherwise the parsedNodeCache
+                // gets
                 // confused.
                 continue;
             }
@@ -374,6 +375,15 @@ public class ExportsParser extends AbstractParser<ExportsData> {
             }
         }
 
+        if (isGenerateSlowPathOnly(type)) {
+            for (ExportsLibrary libraryExports : model.getExportedLibraries().values()) {
+                for (ExportMessageData export : libraryExports.getExportedMessages().values()) {
+                    if (export.isClass() && export.getSpecializedNode() != null) {
+                        NodeParser.removeFastPathSpecializations(export.getSpecializedNode());
+                    }
+                }
+            }
+        }
         return model;
     }
 
@@ -1061,6 +1071,10 @@ public class ExportsParser extends AbstractParser<ExportsData> {
         AnnotationMirror reportPolymorphismExclude = findAnnotationMirror(nodeType, types.ReportPolymorphism_Exclude);
         if (reportPolymorphismExclude != null) {
             clonedType.getAnnotationMirrors().add(reportPolymorphismExclude);
+        }
+        AnnotationMirror reportPolymorphismMegamorphic = findAnnotationMirror(nodeType, types.ReportPolymorphism_Megamorphic);
+        if (reportPolymorphismMegamorphic != null) {
+            clonedType.getAnnotationMirrors().add(reportPolymorphismMegamorphic);
         }
     }
 

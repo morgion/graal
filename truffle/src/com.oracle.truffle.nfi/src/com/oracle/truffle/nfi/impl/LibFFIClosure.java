@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -261,7 +261,13 @@ final class LibFFIClosure implements TruffleObject {
         }
 
         @Override
-        protected ByteBuffer getPrimBuffer() {
+        public int position() {
+            CompilerDirectives.transferToInterpreterAndInvalidate();
+            throw new IllegalStateException("should not reach here");
+        }
+
+        @Override
+        public void position(int newPosition) {
             CompilerDirectives.transferToInterpreterAndInvalidate();
             throw new IllegalStateException("should not reach here");
         }

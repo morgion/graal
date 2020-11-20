@@ -126,8 +126,8 @@ abstract class LLVMManagedAccessDefaults {
 
         /**
          * Annotation helper for guards to check whether {@code obj} is an auto-deref handle (e.g. a
-         * wrapped pointer). This helper assumes that an isPointer call returns true for
-         * {@code obj}.
+         * wrapped pointer). This helper assumes that an isPointer call returns true for {@code obj}
+         * .
          */
         static boolean isWrappedAutoDerefHandle(LLVMLanguage language, LLVMNativeLibrary nativeLibrary, Object obj) {
             try {
@@ -354,7 +354,7 @@ abstract class LLVMManagedAccessDefaults {
 
         @Specialization(guards = {"!natives.isPointer(receiver)"})
         static void doValue(Object receiver, long offset, Object value, ForeignToLLVMType type,
-                        @SuppressWarnings("unused") @CachedLibrary(limit = "3") NativeTypeLibrary nativeTypes,
+                        @CachedLibrary(limit = "3") NativeTypeLibrary nativeTypes,
                         @Shared("interopWrite") @Cached LLVMInteropWriteNode interopWrite,
                         @SuppressWarnings("unused") @CachedLibrary(limit = "3") LLVMNativeLibrary natives,
                         @Shared("fallbackWrite") @Cached FallbackWriteNode fallbackWrite,
@@ -426,10 +426,16 @@ abstract class LLVMManagedAccessDefaults {
 
         abstract void executeWrite(Object obj, long offset, Object value, ForeignToLLVMType type);
 
+        /**
+         * @param obj
+         * @param offset
+         * @param value
+         * @param type
+         * @see #executeWrite(Object, long, Object, ForeignToLLVMType)
+         */
         @Specialization(limit = "3", guards = "type == cachedType")
-        @SuppressWarnings("unused")
         void doCachedType(Object obj, long offset, Object value, ForeignToLLVMType type,
-                        @Cached("type") ForeignToLLVMType cachedType,
+                        @Cached("type") @SuppressWarnings("unused") ForeignToLLVMType cachedType,
                         @Cached(parameters = "cachedType") LLVMDataEscapeNode dataEscape,
                         @CachedLibrary(limit = "5") InteropLibrary interop,
                         @Cached GetWriteIdentifierNode getWriteIdentifier) {

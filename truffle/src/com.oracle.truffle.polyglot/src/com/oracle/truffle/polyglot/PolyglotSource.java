@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -190,6 +190,12 @@ class PolyglotSource extends AbstractSourceImpl {
     }
 
     @Override
+    public String getLanguage(Object impl) {
+        com.oracle.truffle.api.source.Source source = (com.oracle.truffle.api.source.Source) impl;
+        return source.getLanguage();
+    }
+
+    @Override
     public String findLanguage(File file) throws IOException {
         Objects.requireNonNull(file);
         String mimeType = findMimeType(file);
@@ -299,10 +305,7 @@ class PolyglotSource extends AbstractSourceImpl {
         builder.encoding(encoding);
 
         try {
-            com.oracle.truffle.api.source.Source truffleSource = builder.build();
-            Source polyglotSource = engineImpl.getAPIAccess().newSource(language, truffleSource);
-            EngineAccessor.SOURCE.setPolyglotSource(truffleSource, polyglotSource);
-            return polyglotSource;
+            return ((PolyglotImpl) engineImpl).getOrCreatePolyglotSource(builder.build());
         } catch (IOException e) {
             throw e;
         } catch (RuntimeException e) {

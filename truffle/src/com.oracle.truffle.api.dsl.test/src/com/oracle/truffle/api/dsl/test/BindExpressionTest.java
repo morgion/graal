@@ -44,16 +44,23 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import java.util.List;
+
 import org.junit.Test;
 
 import com.oracle.truffle.api.Assumption;
+import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Introspectable;
+import com.oracle.truffle.api.dsl.Introspection;
+import com.oracle.truffle.api.dsl.Introspection.SpecializationInfo;
 import com.oracle.truffle.api.dsl.NodeField;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.dsl.UnsupportedSpecializationException;
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindBindsCacheNodeGen;
+import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindCachedNodeTestNodeGen;
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindFieldNodeGen;
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindInLimitNodeGen;
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindMethodNodeGen;
@@ -65,7 +72,9 @@ import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindTransitiveC
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindTransitiveDynamicAndCachedNodeGen;
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindTransitiveDynamicNodeGen;
 import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.BindTransitiveDynamicWithLibraryNodeGen;
+import com.oracle.truffle.api.dsl.test.BindExpressionTestFactory.IntrospectableNodeGen;
 import com.oracle.truffle.api.interop.InteropLibrary;
+import com.oracle.truffle.api.interop.UnsupportedMessageException;
 import com.oracle.truffle.api.library.CachedLibrary;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.test.polyglot.AbstractPolyglotTest;
@@ -195,6 +204,40 @@ public class BindExpressionTest extends AbstractPolyglotTest {
     }
 
     /*
+     * We need to make sure introspectable does not include bind parameters.
+     */
+    @Test
+    public void testIntrospectable() {
+        IntrospectableNode node = IntrospectableNodeGen.create();
+        TestObject o = new TestObject();
+        node.execute(o);
+        List<SpecializationInfo> infos = Introspection.getSpecializations(node);
+        assertEquals(1, infos.size());
+        for (SpecializationInfo info : infos) {
+            assertEquals(1, info.getInstances());
+            List<Object> cachedData = info.getCachedData(0);
+            assertEquals(1, cachedData.size());
+            assertSame(o.storage, cachedData.iterator().next());
+        }
+    }
+
+    @Introspectable
+    abstract static class IntrospectableNode extends Node {
+
+        abstract Object execute(Object arg0);
+
+        @Specialization(guards = "storage == cachedStorage", limit = "2")
+        Object s0(TestObject a0,
+                        @Bind("a0.storage") Object storage,
+                        @Cached("storage") Object cachedStorage) {
+            assertSame(storage, cachedStorage);
+            assertSame(a0.storage, storage);
+            return a0;
+        }
+
+    }
+
+    /*
      * This test verifies that an extract expression can be used in a limit expression if it only
      * binds cached values.
      */
@@ -282,7 +325,7 @@ public class BindExpressionTest extends AbstractPolyglotTest {
      */
     @Test
     public void testBindTransitiveDynamicWithLibrary() {
-        BindTransitiveDynamicWithLibraryNode node = BindTransitiveDynamicWithLibraryNodeGen.create();
+        BindTransitiveDynamicWithLibraryNode node = adoptNode(BindTransitiveDynamicWithLibraryNodeGen.create()).get();
         TestObject o = new TestObject();
         node.execute(o);
         node.execute(o);
@@ -401,6 +444,44 @@ public class BindExpressionTest extends AbstractPolyglotTest {
                         @Bind("field0") int field) {
             return field;
         }
+    }
+
+    @Test
+    public void testBindCachedNodeTest() {
+        BindCachedNodeTest node = adoptNode(BindCachedNodeTestNodeGen.create()).get();
+        TestObject o = new TestObject();
+        assertEquals("42", node.execute("42"));
+    }
+
+    abstract static class BoundTestNode extends Node {
+
+        abstract Object execute(Object arg);
+
+        @Specialization
+        Object s0(Object arg) {
+            return arg;
+        }
+
+    }
+
+    abstract static class BindCachedNodeTest extends Node {
+
+        static int LIMIT = 0;
+
+        abstract Object execute(Object arg0);
+
+        @Specialization(limit = "LIMIT")
+        Object s0(Object arg0,
+                        @Cached BoundTestNode testNode,
+                        @Bind("testNode.execute(arg0)") Object result,
+                        @CachedLibrary("result") InteropLibrary lib) {
+            try {
+                return lib.asString(result);
+            } catch (UnsupportedMessageException e) {
+                throw CompilerDirectives.shouldNotReachHere();
+            }
+        }
+
     }
 
     abstract static class ErrorUseInAssumptionsNode extends Node {

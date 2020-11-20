@@ -40,11 +40,8 @@
  */
 package com.oracle.truffle.regex;
 
-import java.util.Collections;
-
 import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
-import com.oracle.truffle.api.Scope;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.instrumentation.ProvidedTags;
@@ -96,16 +93,14 @@ public final class RegexLanguage extends TruffleLanguage<RegexLanguage.RegexCont
 
     public final RegexEngineBuilder engineBuilder = new RegexEngineBuilder(this);
 
-    private final CallTarget getEngineBuilderCT = Truffle.getRuntime().createCallTarget(RootNode.createConstantNode(engineBuilder));
-
     @Override
     protected CallTarget parse(ParsingRequest parsingRequest) {
-        return getEngineBuilderCT;
+        return getCurrentContext().getEngineBuilderCT;
     }
 
     @Override
     protected RegexContext createContext(Env env) {
-        return new RegexContext(env);
+        return new RegexContext(env, engineBuilder);
     }
 
     @Override
@@ -115,8 +110,8 @@ public final class RegexLanguage extends TruffleLanguage<RegexLanguage.RegexCont
     }
 
     @Override
-    protected Iterable<Scope> findTopScopes(RegexContext context) {
-        return Collections.emptySet();
+    protected Object getScope(RegexContext context) {
+        return null;
     }
 
     /**
@@ -141,9 +136,11 @@ public final class RegexLanguage extends TruffleLanguage<RegexLanguage.RegexCont
 
     public static final class RegexContext {
         @CompilerDirectives.CompilationFinal private Env env;
+        private final CallTarget getEngineBuilderCT;
 
-        RegexContext(Env env) {
+        RegexContext(Env env, RegexEngineBuilder builder) {
             this.env = env;
+            getEngineBuilderCT = Truffle.getRuntime().createCallTarget(RootNode.createConstantNode(builder));
         }
 
         void patchContext(Env patchedEnv) {

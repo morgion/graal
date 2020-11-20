@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -96,10 +96,11 @@ import com.oracle.truffle.api.nodes.UnexpectedResultException;
  *
  * @since 20.2.0
  */
-@GenerateLibrary(defaultExportLookupEnabled = true, dynamicDispatchEnabled = false)
+@GenerateLibrary(defaultExportLookupEnabled = true, dynamicDispatchEnabled = false, pushEncapsulatingNode = false)
 public abstract class DynamicObjectLibrary extends Library {
 
-    static final LibraryFactory<DynamicObjectLibrary> FACTORY = LibraryFactory.resolve(DynamicObjectLibrary.class);
+    private static final LibraryFactory<DynamicObjectLibrary> FACTORY = LibraryFactory.resolve(DynamicObjectLibrary.class);
+    private static final DynamicObjectLibrary UNCACHED = FACTORY.getUncached();
 
     /**
      * @since 20.2.0
@@ -124,7 +125,7 @@ public abstract class DynamicObjectLibrary extends Library {
      * @since 20.2.0
      */
     public static DynamicObjectLibrary getUncached() {
-        return getFactory().getUncached();
+        return UNCACHED;
     }
 
     /**
@@ -356,13 +357,10 @@ public abstract class DynamicObjectLibrary extends Library {
      *
      * Type objects are always compared by object identity, never {@code equals}.
      *
-     * <p>
-     * Note: For compatibility reasons, the type needs to be an instance of
-     * {@link com.oracle.truffle.api.object.ObjectType ObjectType}. This restriction will be lifted
-     * in a future version.
-     *
-     * @param type an instance of {@link com.oracle.truffle.api.object.ObjectType}.
+     * @param type a non-null type identifier defined by the guest language.
      * @return {@code true} if the type (and the object's shape) changed
+     * @throws IllegalArgumentException if the type is not an instance of {@link ObjectType} and the
+     *             object has been created with the legacy layout.
      * @since 20.2.0
      * @see #getDynamicType(DynamicObject)
      */

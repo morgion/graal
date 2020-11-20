@@ -1,10 +1,10 @@
 suite = {
-    "mxversion": "5.223.0",
+    "mxversion": "5.271.0",
     "name": "tools",
     "defaultLicense" : "GPLv2-CPE",
 
     "groupId" : "org.graalvm.tools",
-    "version" : "20.2.0",
+    "version" : "20.3.0",
     "release" : True,
     "url" : "http://openjdk.java.net/projects/graal",
     "developer" : {
@@ -96,7 +96,7 @@ suite = {
             "annotationProcessors" : ["truffle:TRUFFLE_DSL_PROCESSOR"],
             "workingSets" : "Tools",
         },
-        "com.oracle.truffle.tools.agentscript.test" : {
+        "org.graalvm.tools.insight.test" : {
             "subDir" : "src",
             "sourceDirs" : ["src"],
             "dependencies" : [
@@ -167,13 +167,42 @@ suite = {
             "javaCompliance" : "8+",
             "workingSets" : "Tools",
         },
+        "com.oracle.truffle.tools.dap" : {
+            "subDir" : "src",
+            "sourceDirs" : ["src"],
+            "dependencies" : [
+                "truffle:TRUFFLE_API",
+                "TruffleJSON",
+            ],
+            "exports" : [
+              "<package-info>", # exports all packages containing package-info.java
+              "com.oracle.truffle.tools.dap.instrument to org.graalvm.truffle"
+            ],
+            "annotationProcessors" : ["truffle:TRUFFLE_DSL_PROCESSOR"],
+            "checkstyle" : "com.oracle.truffle.tools.chromeinspector",
+            "javaCompliance" : "8+",
+            "workingSets" : "Tools",
+        },
+        "com.oracle.truffle.tools.dap.test" : {
+            "subDir" : "src",
+            "sourceDirs" : ["src"],
+            "dependencies" : [
+                "com.oracle.truffle.tools.dap",
+                "truffle:TRUFFLE_TEST",
+                "mx:JUNIT"
+            ],
+            "annotationProcessors" : ["truffle:TRUFFLE_DSL_PROCESSOR"],
+            "checkstyle" : "com.oracle.truffle.tools.chromeinspector",
+            "javaCompliance" : "8+",
+            "workingSets" : "Tools",
+        },
         "com.oracle.truffle.tools.warmup" : {
             "subDir" : "src",
             "sourceDirs" : ["src"],
             "dependencies" : [
                 "truffle:TRUFFLE_API",
                 "TruffleJSON",
-                ],
+            ],
             "exports" : [
               "<package-info>", # exports all packages containing package-info.java
               # "com.oracle.truffle.tools.warmup.impl to org.graalvm.truffle",
@@ -274,31 +303,31 @@ suite = {
             "dependencies" : ["SLF4J_API"]
         },
         "VISUALVM_COMMON" : {
-            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.2-2.tar.gz"],
-            "sha1" : "e33e37feef572f4abce1545636efd8c7f29103c3",
+            "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.3-2.tar.gz"],
+            "sha1" : "6c3ce51f9c4a618e94f4f45e32dfa6ec5b50b26e",
         },
         "VISUALVM_PLATFORM_SPECIFIC" : {
             "os_arch" : {
                 "linux" : {
                     "amd64" : {
-                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.2-2-linux-amd64.tar.gz"],
-                        "sha1" : "071279984cee8307ff70a739549bb23dd8ba2dd9",
+                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.3-2-linux-amd64.tar.gz"],
+                        "sha1" : "d805831dac99a58232b53e7faa12461f8a45c596",
                     },
                     "aarch64" : {
-                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.2-2-linux-aarch64.tar.gz"],
-                        "sha1" : "1b163b76bd98ced9e78fcf72d2e117ec8f285ab6",
+                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.3-2-linux-aarch64.tar.gz"],
+                        "sha1" : "c9f063f469d4243b86eb7298d134050a2ea27206",
                     }
                 },
                 "darwin" : {
                     "amd64" : {
-                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.2-2-macosx-x86_64.tar.gz"],
-                        "sha1" : "396d0c22d90d1f4fe6c42384b403adce9e8109c3",
+                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.3-2-macosx-x86_64.tar.gz"],
+                        "sha1" : "e1dada8b125dca7b0b854a40c4453008ac21238f",
                     }
                 },
                 "windows" : {
                     "amd64" : {
-                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.2-2-windows-amd64.tar.gz"],
-                        "sha1" : "80c01239b563e54379c920f7050bb2784ab08a1c",
+                        "urls" : ["https://lafo.ssw.uni-linz.ac.at/pub/graal-external-deps/visualvm/visualvm-20.3-2-windows-amd64.tar.gz"],
+                        "sha1" : "64e6efe31d5639db72e222fa5b357d332fd0b3ed",
                     }
                 },
             }
@@ -309,7 +338,14 @@ suite = {
         "CHROMEINSPECTOR": {
             "subDir": "src",
             # This distribution defines a module.
-            "moduleName" : "com.oracle.truffle.tools.chromeinspector",
+            "moduleInfo" : {
+                "name" : "com.oracle.truffle.tools.chromeinspector",
+                "requiresConcealed" : {
+                    "org.graalvm.truffle" : [
+                        "com.oracle.truffle.api.instrumentation"
+                    ],
+                },
+            },
             "dependencies": ["com.oracle.truffle.tools.chromeinspector"],
             "distDependencies" : [
                 "truffle:TRUFFLE_API",
@@ -342,10 +378,17 @@ suite = {
                 "native-image.properties" : "file:mx.tools/tools-chromeinspector.properties",
             },
         },
-        "AGENTSCRIPT": {
+        "INSIGHT": {
             "subDir": "src",
             # This distribution defines a module.
-            "moduleName" : "com.oracle.truffle.tools.agentscript",
+            "moduleInfo" : {
+                "name" : "org.graalvm.tools.insight",
+                "requiresConcealed" : {
+                    "org.graalvm.truffle" : [
+                        "com.oracle.truffle.api.instrumentation"
+                    ],
+                },
+            },
             "dependencies": [
                 "org.graalvm.tools.insight",
                 "com.oracle.truffle.tools.agentscript"
@@ -354,33 +397,40 @@ suite = {
                 "truffle:TRUFFLE_API",
             ],
             "maven" : {
-              "artifactId" : "agentscript",
+              "artifactId" : "insight",
             },
-            "description" : "Script driven tracing and instrumentation Agent",
+            "description" : "The Ultimate Insights Gathering Platform",
         },
-        "AGENTSCRIPT_TEST": {
+        "INSIGHT_TEST": {
             "subDir": "src",
             "dependencies": [
-                "com.oracle.truffle.tools.agentscript.test",
+                "org.graalvm.tools.insight.test",
             ],
             "distDependencies" : [
                 "truffle:TRUFFLE_TEST",
-                "AGENTSCRIPT",
+                "INSIGHT",
             ],
-            "description" : "Tests for the script driven tracing and instrumentation Agent.",
+            "description" : "Tests for the Ultimate Insights Gathering Platform",
             "maven" : False,
         },
-        "AGENTSCRIPT_GRAALVM_SUPPORT" : {
+        "INSIGHT_GRAALVM_SUPPORT" : {
             "native" : True,
-            "description" : "Script driven tracing and instrumentation Agent for the GraalVM",
+            "description" : "The Ultimate Insights Gathering Platform for the GraalVM",
             "layout" : {
-                "native-image.properties" : "file:mx.tools/tools-agentscript.properties",
+                "native-image.properties" : "file:mx.tools/tools-insight.properties",
             },
         },
         "TRUFFLE_PROFILER": {
             "subDir": "src",
             # This distribution defines a module.
-            "moduleName" : "com.oracle.truffle.tools.profiler",
+            "moduleInfo" : {
+                "name" : "com.oracle.truffle.tools.profiler",
+                "requiresConcealed" : {
+                    "org.graalvm.truffle" : [
+                        "com.oracle.truffle.api.instrumentation"
+                    ],
+                },
+            },
             "dependencies": [
                 "com.oracle.truffle.tools.profiler",
             ],
@@ -415,7 +465,14 @@ suite = {
         "TRUFFLE_COVERAGE": {
             "subDir": "src",
             # This distribution defines a module.
-            "moduleName" : "com.oracle.truffle.tools.coverage",
+            "moduleInfo" : {
+                "name" : "com.oracle.truffle.tools.coverage",
+                "requiresConcealed" : {
+                    "org.graalvm.truffle" : [
+                        "com.oracle.truffle.api.instrumentation"
+                    ],
+                },
+            },
             "dependencies": [
                 "com.oracle.truffle.tools.coverage",
             ],
@@ -447,6 +504,47 @@ suite = {
                 "native-image.properties" : "file:mx.tools/tools-coverage.properties",
             },
         },
+        "DAP": {
+            "subDir": "src",
+            # This distribution defines a module.
+            "moduleInfo" : {
+                "name" : "com.oracle.truffle.tools.dap",
+                "requiresConcealed" : {
+                    "org.graalvm.truffle" : [
+                        "com.oracle.truffle.api.instrumentation"
+                    ],
+                },
+            },
+            "dependencies": [
+                "com.oracle.truffle.tools.dap",
+            ],
+            "distDependencies" : [
+                "truffle:TRUFFLE_API",
+            ],
+            "maven" : {
+              "artifactId" : "dap",
+            },
+            "description" : "Truffle Debug Protocol Server implementation.",
+        },
+        "DAP_TEST": {
+            "subDir": "src",
+            "dependencies": [
+                "com.oracle.truffle.tools.dap.test",
+            ],
+            "distDependencies" : [
+                "truffle:TRUFFLE_TEST",
+                "DAP",
+            ],
+            "description" : "Tests for the Truffle Debug Protocol Server.",
+            "maven" : False,
+         },
+        "DAP_GRAALVM_SUPPORT" : {
+            "native" : True,
+            "description" : "Truffle Debug Protocol Server distribution for the GraalVM",
+            "layout" : {
+                "native-image.properties" : "file:mx.tools/tools-dap.properties",
+            },
+        },
         "TRUFFLE_WARMUP_ESTIMATOR": {
             "subDir": "src",
             "dependencies": [
@@ -459,7 +557,6 @@ suite = {
               "artifactId" : "warmup",
             },
             "description" : "Truffle warmup estimation tool.",
-            "javadocType" : "api",
         },
         "TRUFFLE_WARMUP_ESTIMATOR_TEST": {
             "subDir": "src",
@@ -508,7 +605,14 @@ suite = {
         "LSP": {
             "subDir": "src",
             # This distribution defines a module.
-            "moduleName" : "org.graalvm.tools.lsp",
+            "moduleInfo" : {
+                "name" : "org.graalvm.tools.lsp",
+                "requiresConcealed" : {
+                    "org.graalvm.truffle" : [
+                        "com.oracle.truffle.api.instrumentation"
+                    ],
+                },
+            },
             "dependencies": [
                 "org.graalvm.tools.api.lsp",
                 "org.graalvm.tools.lsp"

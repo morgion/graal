@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -372,7 +372,7 @@ public abstract class LayoutStrategy {
             }
             return newShape;
         } else if (transition instanceof ObjectTypeTransition) {
-            return shape.changeType(((ObjectTypeTransition) transition).getObjectType());
+            return shape.setDynamicType(((ObjectTypeTransition) transition).getObjectType());
         } else if (transition instanceof ObjectFlagsTransition) {
             return shape.setFlags(((ObjectFlagsTransition) transition).getObjectFlags());
         } else if (transition instanceof ReservePrimitiveArrayTransition) {

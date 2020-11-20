@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -120,6 +120,7 @@ import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.exception.AbstractTruffleException;
 import com.oracle.truffle.api.interop.InteropLibrary;
 import com.oracle.truffle.api.interop.InvalidArrayIndexException;
 import com.oracle.truffle.api.interop.TruffleObject;
@@ -1829,7 +1830,7 @@ public class ValueAPITest {
 
     @Test
     public void testGuestException() {
-        Value exceptionValue = context.asValue(new ExceptionWrapper(new RuntimeException("expected")));
+        Value exceptionValue = context.asValue(new ExceptionWrapper(new LanguageException("expected")));
         assertValue(exceptionValue, EXCEPTION);
         try {
             exceptionValue.throwException();
@@ -1864,6 +1865,26 @@ public class ValueAPITest {
                 return null;
             }
         }));
+    }
+
+    @Test
+    public void testMetaObjectNull() {
+        Value nullValue = context.asValue(null);
+        assertFalse(context.asValue(nullValue).isMetaObject());
+        assertNull(context.asValue(nullValue).getMetaObject());
+
+        assertFalse(context.asValue(null).isMetaObject());
+        assertNull(context.asValue(null).getMetaObject());
+    }
+
+    @Test
+    public void testIsMetaInstanceNull() {
+        Value nullValue = context.asValue(null);
+        assertFalse(context.asValue(Object.class).isMetaInstance(nullValue));
+        assertFalse(context.asValue(Void.class).isMetaInstance(nullValue));
+
+        assertFalse(context.asValue(Object.class).isMetaInstance(null));
+        assertFalse(context.asValue(Void.class).isMetaInstance(null));
     }
 
     @ExportLibrary(InteropLibrary.class)
@@ -2000,6 +2021,14 @@ public class ValueAPITest {
                 throw InvalidArrayIndexException.create(idx);
             }
             return members[(int) idx];
+        }
+    }
+
+    @SuppressWarnings("serial")
+    private static final class LanguageException extends AbstractTruffleException {
+
+        LanguageException(String message) {
+            super(message);
         }
     }
 

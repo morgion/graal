@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -75,6 +75,7 @@ public class LayoutGenerator {
         generateImports(stream);
 
         stream.println();
+        stream.println("@SuppressWarnings(\"deprecation\")");
         stream.printf("@GeneratedBy(%s.class)%n", layout.getInterfaceFullName());
         stream.printf("public class %sLayoutImpl", layout.getName());
 
@@ -776,7 +777,6 @@ public class LayoutGenerator {
             }
 
             if (property.hasShapeSetter()) {
-                addSuppressWarnings(stream, Collections.singleton("deprecation"));
                 stream.println("    @TruffleBoundary");
                 stream.println("    @Override");
                 stream.printf("    public DynamicObjectFactory %s(DynamicObjectFactory factory, %s value) {%n", NameUtils.asSetter(property.getName()), property.getType());
@@ -943,9 +943,6 @@ public class LayoutGenerator {
         Collection<String> warnings = new ArrayList<>(2);
         if (needsUncheckedCast(property)) {
             warnings.add("unchecked");
-        }
-        if (property.hasUnsafeSetter() || property.isShapeProperty()) {
-            warnings.add("deprecation");
         }
         addSuppressWarnings(stream, warnings);
     }

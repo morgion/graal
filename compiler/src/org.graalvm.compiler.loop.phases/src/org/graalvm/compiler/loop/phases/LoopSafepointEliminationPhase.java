@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -31,9 +31,11 @@ import org.graalvm.compiler.nodes.Invoke;
 import org.graalvm.compiler.nodes.LoopEndNode;
 import org.graalvm.compiler.nodes.StructuredGraph;
 import org.graalvm.compiler.nodes.cfg.Block;
-import org.graalvm.compiler.nodes.extended.ForeignCallNode;
+import org.graalvm.compiler.nodes.extended.ForeignCall;
 import org.graalvm.compiler.phases.BasePhase;
 import org.graalvm.compiler.phases.tiers.MidTierContext;
+
+import jdk.vm.ci.meta.ResolvedJavaMethod;
 
 public class LoopSafepointEliminationPhase extends BasePhase<MidTierContext> {
 
@@ -67,7 +69,15 @@ public class LoopSafepointEliminationPhase extends BasePhase<MidTierContext> {
                 blocks: while (b != loop.loop().getHeader()) {
                     assert b != null;
                     for (FixedNode node : b.getNodes()) {
-                        if (node instanceof Invoke || (node instanceof ForeignCallNode && ((ForeignCallNode) node).isGuaranteedSafepoint())) {
+                        boolean canDisableSafepoint = false;
+                        if (node instanceof Invoke) {
+                            Invoke invoke = (Invoke) node;
+                            ResolvedJavaMethod method = invoke.getTargetMethod();
+                            canDisableSafepoint = context.getMetaAccessExtensionProvider().isGuaranteedSafepoint(method, invoke.getInvokeKind().isDirect());
+                        } else if (node instanceof ForeignCall) {
+                            canDisableSafepoint = ((ForeignCall) node).isGuaranteedSafepoint();
+                        }
+                        if (canDisableSafepoint) {
                             loopEnd.disableSafepoint();
                             break blocks;
                         }

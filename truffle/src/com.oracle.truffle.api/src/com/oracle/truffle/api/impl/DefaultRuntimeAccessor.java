@@ -40,16 +40,17 @@
  */
 package com.oracle.truffle.api.impl;
 
-import java.io.OutputStream;
+import java.util.function.Function;
 
 import org.graalvm.options.OptionDescriptors;
 import org.graalvm.options.OptionValues;
 
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.TruffleLogger;
 import com.oracle.truffle.api.nodes.BlockNode;
 import com.oracle.truffle.api.nodes.BlockNode.ElementExecutor;
-import com.oracle.truffle.api.nodes.IndirectCallNode;
 import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.nodes.RootNode;
 
 final class DefaultRuntimeAccessor extends Accessor {
 
@@ -73,24 +74,19 @@ final class DefaultRuntimeAccessor extends Accessor {
         }
 
         @Override
-        public IndirectCallNode createUncachedIndirectCall() {
-            return DefaultIndirectCallNode.createUncached();
-        }
-
-        @Override
         public void onLoopCount(Node source, int iterations) {
             // do nothing
         }
 
         @Override
-        public OptionDescriptors getCompilerOptionDescriptors() {
+        public OptionDescriptors getEngineOptionDescriptors() {
             return OptionDescriptors.EMPTY;
         }
 
         @Override
         public boolean isGuestCallStackFrame(StackTraceElement e) {
             String methodName = e.getMethodName();
-            return (methodName.startsWith(DefaultCallTarget.CALL_BOUNDARY_METHOD_PREFIX)) && e.getClassName().equals(DefaultCallTarget.class.getName());
+            return (methodName.equals(DefaultCallTarget.CALL_BOUNDARY_METHOD)) && e.getClassName().equals(DefaultCallTarget.class.getName());
         }
 
         @Override
@@ -104,16 +100,8 @@ final class DefaultRuntimeAccessor extends Accessor {
         }
 
         @Override
-        public void reloadEngineOptions(Object runtimeData, OptionValues optionValues) {
-        }
-
-        @Override
         public void onEngineClosed(Object runtimeData) {
-        }
 
-        @Override
-        public OutputStream getConfiguredLogStream() {
-            return null;
         }
 
         @Override
@@ -136,6 +124,11 @@ final class DefaultRuntimeAccessor extends Accessor {
             return args;
         }
 
+        @Override
+        public void flushCompileQueue(Object runtimeData) {
+            // default runtime has no compile queue.
+        }
+
         @SuppressWarnings("unchecked")
         @Override
         public <T> T unsafeCast(Object value, Class<T> type, boolean condition, boolean nonNull, boolean exact) {
@@ -143,9 +136,48 @@ final class DefaultRuntimeAccessor extends Accessor {
         }
 
         @Override
+        public boolean inFirstTier() {
+            return false;
+        }
+
+        @Override
         public void reportPolymorphicSpecialize(Node source) {
         }
 
+        @Override
+        public Object createRuntimeData(OptionValues options, Function<String, TruffleLogger> loggerFactory) {
+            return null;
+        }
+
+        @Override
+        public Object tryLoadCachedEngine(OptionValues runtimeData, Function<String, TruffleLogger> loggerFactory) {
+            return null;
+        }
+
+        @Override
+        public void onEngineCreate(Object engine, Object runtimeData) {
+
+        }
+
+        @Override
+        public boolean isStoreEnabled(OptionValues options) {
+            return false;
+        }
+
+        @Override
+        public void onEnginePatch(Object runtimeData, OptionValues options, Function<String, TruffleLogger> loggerFactory) {
+
+        }
+
+        @Override
+        public boolean onEngineClosing(Object runtimeData) {
+            return false;
+        }
+
+        @Override
+        public boolean isOSRRootNode(RootNode rootNode) {
+            return false;
+        }
     }
 
 }

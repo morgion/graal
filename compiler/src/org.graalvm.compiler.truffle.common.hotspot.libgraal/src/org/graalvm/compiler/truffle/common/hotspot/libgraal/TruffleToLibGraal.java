@@ -61,7 +61,6 @@ public @interface TruffleToLibGraal {
         GetGraphDumpDirectory,
         GetInfopoints,
         GetInfopointsCount,
-        GetInitialOptions,
         GetMarksCount,
         GetNodeCount,
         GetNodeTypes,
@@ -76,13 +75,12 @@ public @interface TruffleToLibGraal {
         InstallTruffleCallBoundaryMethods,
         IsBasicDumpEnabled,
         IsDumpChannelOpen,
+        IsPrintGraphEnabled,
         NewCompiler,
         OpenCompilation,
         OpenDebugContext,
         OpenDebugContextScope,
         PendingTransferToInterpreterOffset,
-        Shutdown,
-        TtyWriteByte,
-        TtyWriteBytes;
+        Shutdown;
     }
 }
