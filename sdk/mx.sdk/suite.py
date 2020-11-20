@@ -92,7 +92,7 @@ suite = {
       "os_arch" : {
         "linux" : {
           "amd64" : {
-            "urls" : ["http://192.168.100.50/jenkins/graalvm/llvm-org.tar.gz"],
+            "urls" : ["http://192.168.100.56/jenkins/graalvm/llvm-org-9.tar.gz"],
             "sha1" : "bdbd054fc32551dd118c266fcb17811b5c20896c",
           },
           "aarch64" : {
@@ -125,7 +125,7 @@ suite = {
       # version difference since the sources where repackaged
       "version" : "9.0.0-5-g80b1d876fd-bg0c808efbe5",
       "packedResource" : True,
-      "urls" : ["http://192.168.100.50/jenkins/graalvm/llvm-org-src.tar.gz"],
+      "urls" : ["http://192.168.100.56/jenkins/graalvm/llvm-org-src-9.tar.gz"],
       "sha1" : "4494bb0bce0db57aeaec1e05d0ab7f527edc7e8d",
       "license" : "Apache-2.0-LLVM",
       },
