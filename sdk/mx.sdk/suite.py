@@ -98,7 +98,7 @@ suite = {
       "os_arch" : {
         "linux" : {
           "amd64" : {
-            "urls" : ["http://192.168.100.56/jenkins/graalvm/llvm-org-10.tar.gz"],
+            "urls" : ["https://download.bell-sw.com/graalvm/llvm-org-10.tar.gz"],
             "sha1" : "b9dbb6e0d85ba710a0abc5143b1e220abde0432f",
           },
           "aarch64" : {
@@ -132,7 +132,7 @@ suite = {
       "version" : "10.0.0-4-g22d2637565-bg83994d0b4b",
       "host" : "https://lafo.ssw.uni-linz.ac.at/pub/llvm-org",
       "packedResource" : True,
-      "urls" : ["http://192.168.100.56/jenkins/graalvm/llvm-org-src-10.tar.gz"],
+      "urls" : ["https://download.bell-sw.com/graalvm/llvm-org-src-10.tar.gz"],
       "sha1" : "e527447a1c44f6f172db049d14c5a090ab2c806b",
       "license" : "Apache-2.0-LLVM",
       },
