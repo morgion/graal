@@ -603,6 +603,12 @@ suite = {
             "ldlibs" : ["-ldl"],
           },
         },
+        "linux-musl" : {
+          "<others>" : {
+            "cflags" : ["-g", "-Wall", "-Werror"],
+            "ldlibs" : ["-ldl"],
+          },
+        },
         "<others>" : {
           "<others>" : {
             "cflags" : ["-g", "-Wall", "-Werror"],
