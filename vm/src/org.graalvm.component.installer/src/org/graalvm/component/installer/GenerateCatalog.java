@@ -72,7 +72,7 @@ public final class GenerateCatalog {
     private final StringBuilder catalogContents = new StringBuilder();
     private final StringBuilder catalogHeader = new StringBuilder();
     private Environment env;
-    private String graalNameFormatString = "GraalVM %1s %2s/%3s";
+    private String graalNameFormatString = "GraalVM %s %s%s/%s";
     private String graalVersionFormatString;
 
     private static final Map<String, String> OPTIONS = new HashMap<>();
@@ -170,11 +170,13 @@ public final class GenerateCatalog {
     static class GraalVersion {
         String version;
         String os;
+        String variant;
         String arch;
 
-        GraalVersion(String version, String os, String arch) {
+        GraalVersion(String version, String os, String variant, String arch) {
             this.version = version;
             this.os = os;
+            this.variant = variant;
             this.arch = arch;
         }
 
@@ -235,10 +237,10 @@ public final class GenerateCatalog {
 
         switch (formatVer) {
             case 1:
-                graalVersionFormatString = "%s_%s_%s";
+                graalVersionFormatString = "%s_%s%s_%s";
                 break;
             case 2:
-                graalVersionFormatString = "%2$s_%3$s/%1$s";
+                graalVersionFormatString = "%2$s%3$s_%4$s/%1$s";
                 break;
             default:
                 throw new IllegalStateException();
@@ -307,6 +309,7 @@ public final class GenerateCatalog {
     }
 
     private String os;
+    private String variant;
     private String arch;
     private String version;
     private int formatVer = 1;
@@ -314,7 +317,7 @@ public final class GenerateCatalog {
     private String findComponentPrefix(ComponentInfo info) {
         Map<String, String> m = info.getRequiredGraalValues();
         if (graalVersionPrefix != null) {
-            arch = os = null;
+            arch = os = variant = null;
             version = graalVersionPrefix;
             return graalVersionPrefix;
         }
@@ -330,9 +333,11 @@ public final class GenerateCatalog {
                     break;
             }
         }
+        String var = m.get(CommonConstants.CAP_OS_VARIANT); ///forceVariant
         return String.format(graalVersionFormatString,
                         version,
                         os = forceOS != null ? forceOS : m.get(CommonConstants.CAP_OS_NAME),
+                        variant = var == null || var.isEmpty() ? "" : "_" + var,
                         arch = forceArch != null ? forceArch : m.get(CommonConstants.CAP_OS_ARCH));
     }
 
@@ -346,8 +351,8 @@ public final class GenerateCatalog {
                 n = graalVersionName;
             } else {
                 // do not use serial for releases.
-                vprefix = String.format(graalVersionFormatString, ver.version, ver.os, ver.arch, "");
-                n = String.format(graalNameFormatString, ver.version, ver.os, ver.arch, "");
+                vprefix = String.format(graalVersionFormatString, ver.version, ver.os, ver.variant, ver.arch);
+                n = String.format(graalNameFormatString, ver.version, ver.os, ver.variant, ver.arch);
             }
             catalogHeader.append(GRAALVM_CAPABILITY).append('.').append(vprefix).append('=').append(n).append('\n');
             if (ver.os == null) {
@@ -366,7 +371,7 @@ public final class GenerateCatalog {
                 ComponentInfo info = ldr.createComponentInfo();
                 String prefix = findComponentPrefix(info);
                 if (!graalVMReleases.containsKey(prefix)) {
-                    graalVMReleases.put(prefix, new GraalVersion(version, os, arch));
+                    graalVMReleases.put(prefix, new GraalVersion(version, os, variant, arch));
                 }
                 Manifest mf = jf.getManifest();
                 if (mf == null) {
