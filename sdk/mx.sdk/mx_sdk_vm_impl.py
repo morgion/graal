@@ -832,6 +832,7 @@ x-GraalVM-Component-Distribution=bundled
         _metadata_dict.setdefault('JAVA_VERSION', quote(_src_jdk.version))
         _metadata_dict.setdefault('OS_NAME', quote(get_graalvm_os()))
         _metadata_dict.setdefault('OS_ARCH', quote(mx.get_arch()))
+        _metadata_dict.setdefault('OS_VARIANT', quote(mx.get_os_variant()))
 
         _metadata_dict['GRAALVM_VERSION'] = quote(_suite.release_version())
         _source = _metadata_dict.get('SOURCE') or ''
@@ -2009,16 +2010,21 @@ class InstallableComponentArchiver(mx.Archiver):
 
     def __exit__(self, exc_type, exc_value, traceback):
         main_component = self.components[0]
+        if mx.get_os_variant():
+            variant_filter = "(os_variant={})".format(mx.get_os_variant())
+        else:
+            variant_filter = ""
         _manifest_str = """Bundle-Name: {name}
 Bundle-Symbolic-Name: org.graalvm.{id}
 Bundle-Version: {version}
-Bundle-RequireCapability: org.graalvm; filter:="(&(graalvm_version={version})(os_name={os})(os_arch={arch})(java_version={java_version}))"
+Bundle-RequireCapability: org.graalvm; filter:="(&(graalvm_version={version})(os_name={os}){variant}(os_arch={arch})(java_version={java_version}))"
 x-GraalVM-Polyglot-Part: {polyglot}
 """.format(  # GR-10249: the manifest file must end with a newline
             name=main_component.name,
             id=main_component.installable_id,
             version=_suite.release_version(),
             os=get_graalvm_os(),
+            variant = variant_filter,
             arch=mx.get_arch(),
             java_version=_src_jdk_version,
             polyglot=isinstance(main_component, mx_sdk.GraalVmTruffleComponent) and main_component.include_in_polyglot
