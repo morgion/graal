@@ -162,7 +162,8 @@ class SulongTestSuite(SulongTestSuiteBase):  # pylint: disable=too-many-ancestor
                     relPath = os.path.relpath(absPath, root)
                     _, ext = os.path.splitext(relPath)
                     if ext in getattr(self, "fileExts", ['.c', '.cpp', '.ll']):
-                        self._tests.append(relPath + ".dir")
+                        if not hasattr(self, 'excludedTests') or relPath not in self.excludedTests:
+                            self._tests.append(relPath + ".dir")
         return self._tests
 
     def getBuildEnv(self, replaceVar=mx_subst.path_substitutions):
