@@ -926,6 +926,17 @@ suite = {
             },
           },
         },
+        "linux-musl": {
+          "<others>": {
+            "buildEnv" : {
+              "SUITE_LDFLAGS" : "-lm -lrt",
+            },
+            "excludedTests" : [
+              'libc/freopen/freopen-redirect-stdin.c',
+              'libc/getchar/getchar.c',
+            ],
+          },
+        },
         "<others>": {
           "<others>" : {
             "buildEnv" : {
